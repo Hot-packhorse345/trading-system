@@ -1,0 +1,16 @@
+# Build Files
+/target
+/mt5_bridge/build
+/mt5_bridge/*.dll
+/mt5_bridge/*.lib
+/mt5_bridge/*.exp
+/mt5_bridge/*.obj
+/mt5_bridge/*.exe
+
+# Project Outputs
+/data
+/results
+/configs
+
+# Environment
+.env

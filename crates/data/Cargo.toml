@@ -1,0 +1,17 @@
+[package]
+name    = "data"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ts_core    = { workspace = true }
+serde      = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+anyhow     = { workspace = true }
+rusqlite   = { workspace = true, features = ["bundled"] }
+parquet    = "52.0"
+arrow      = "52.0"
+tempfile   = "3"
+sha2       = "0.10"
+dashmap    = "5.5"
+tracing    = { workspace = true }

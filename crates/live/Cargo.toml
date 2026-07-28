@@ -1,0 +1,23 @@
+[package]
+name    = "live"
+version.workspace     = true
+edition.workspace     = true
+authors.workspace     = true
+license.workspace     = true
+
+[dependencies]
+ts_core    = { path = "../ts_core" }
+risk       = { path = "../risk" }
+indicators = { path = "../indicators" }
+strategy   = { path = "../strategy" }
+data       = { path = "../data" }
+broker     = { path = "../broker" }
+infra      = { path = "../infra" }
+
+tokio       = { workspace = true }
+async-trait = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+chrono      = { workspace = true }

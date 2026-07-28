@@ -1,0 +1,12 @@
+[package]
+name    = "strategy"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ts_core    = { workspace = true }
+indicators = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+anyhow     = { workspace = true }
+tracing    = { workspace = true }

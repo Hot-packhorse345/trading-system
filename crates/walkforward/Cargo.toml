@@ -1,0 +1,21 @@
+[package]
+name    = "walkforward"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+ts_core    = { path = "../ts_core" }
+indicators = { path = "../indicators" }
+strategy   = { path = "../strategy" }
+risk       = { path = "../risk" }
+backtest   = { path = "../backtest" }
+data       = { path = "../data" }
+
+rayon      = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+anyhow     = { workspace = true }
+tracing    = { workspace = true }
+indicatif  = { workspace = true }

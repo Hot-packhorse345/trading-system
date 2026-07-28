@@ -1,0 +1,131 @@
+[workspace]
+resolver = "2"
+members = [
+    ".",
+    "crates/ts_core",
+    "crates/risk",
+    "crates/indicators",
+    "crates/strategy",
+    "crates/data",
+    "crates/broker",
+    "crates/infra",
+    "crates/backtest",
+    "crates/live",
+    "crates/walkforward",
+    "crates/edge",
+]
+
+[workspace.package]
+version     = "0.1.0"
+edition     = "2021"
+authors     = ["Trading System Authors"]
+license     = "MIT"
+
+[workspace.dependencies]
+# Async
+tokio             = { version = "1", features = ["full", "test-util"] }
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+futures-util      = "0.3"
+async-trait       = "0.1"
+
+# Parallelism
+rayon = "1.10"
+
+# Serialisation
+serde      = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+# HTTP
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# Storage
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Errors
+anyhow    = "1"
+thiserror = "1"
+
+# Logging
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Utils
+chrono   = { version = ">=0.4, <0.4.39", features = ["serde"] }
+dotenvy  = "0.15"
+uuid   = { version = "1", features = ["v4"] }
+hmac   = "0.12"
+sha2   = "0.10"
+hex    = "0.4"
+csv    = "1"
+rand   = "0.8"
+indicatif = "0.17"
+
+# PNG rendering
+image    = { version = "0.25", default-features = false, features = ["png"] }
+ab_glyph = "0.2"
+
+# Internal crates
+ts_core     = { path = "crates/ts_core" }
+risk        = { path = "crates/risk" }
+indicators  = { path = "crates/indicators" }
+strategy    = { path = "crates/strategy" }
+data        = { path = "crates/data" }
+broker      = { path = "crates/broker" }
+infra       = { path = "crates/infra" }
+backtest    = { path = "crates/backtest" }
+live        = { path = "crates/live" }
+walkforward = { path = "crates/walkforward" }
+edge        = { path = "crates/edge" }
+
+# ── Root binary ───────────────────────────────────────────────────────────
+[package]
+name        = "trading-system"
+version.workspace = true
+edition.workspace = true
+default-run = "trading-system"
+
+[[bin]]
+name = "trading-system"
+path = "src/main.rs"
+
+[[bin]]
+name = "live"
+path = "src/bin/live.rs"
+
+
+[dependencies]
+ts_core     = { workspace = true }
+risk        = { workspace = true }
+indicators  = { workspace = true }
+strategy    = { workspace = true }
+data        = { workspace = true }
+broker      = { workspace = true }
+infra       = { workspace = true }
+backtest    = { workspace = true }
+live        = { workspace = true }
+walkforward = { workspace = true }
+edge        = { workspace = true }
+clap        = { workspace = true }
+anyhow      = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+csv         = { workspace = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono      = { workspace = true }
+dotenvy     = { workspace = true }
+image       = { workspace = true }
+ab_glyph    = { workspace = true }
+
+[profile.release]
+opt-level     = 3
+lto           = "fat"
+codegen-units = 1
+# NOTE: `unwind` (not `abort`) so a panic in one live worker task does not tear
+# down the whole process and abandon other workers' open positions. The live
+# engine additionally supervises/restarts worker tasks (see live::engine).
+panic         = "unwind"
