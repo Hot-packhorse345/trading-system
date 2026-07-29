@@ -1,43 +1,146 @@
-use strategy::build_strategy;
-use ts_core::{Bar, Direction, IndicatorSet, Params};
 use std::collections::HashMap;
 
+use strategy::build_strategy;
+use ts_core::{Bar, Direction, IndicatorSet, Params};
+
 fn make_bars(n: usize) -> Vec<Bar> {
-    (0..n).map(|i| Bar::new(1719000000 + (i as i64) * 60, 100.0, 101.0, 99.0, 100.0, 1000.0)).collect()
+    (0..n)
+        .map(|i| {
+            Bar::new(
+                1_719_000_000 + (i as i64) * 60,
+                100.0,
+                101.0,
+                99.0,
+                100.0,
+                1000.0,
+            )
+        })
+        .collect()
+}
+
+fn bar(close: f64) -> Bar {
+    Bar::new(0, close, close, close, close, 0.0)
 }
 
 #[test]
-fn test_ema_cross_strategy_signals() {
-    let strat = build_strategy("ema_cross").unwrap();
+fn ema_cross_generates_buy_signal_on_bullish_cross() {
+    let strategy = build_strategy("ema_cross").unwrap();
     let bars = make_bars(10);
 
-    let mut cols = IndicatorSet::default();
-    // Simulate an EMA cross: fast starts below slow, then crosses above
-    let fast_vals = vec![f64::NAN, f64::NAN, 98.0, 99.0, 102.0, 104.0, 105.0, 105.0, 105.0, 105.0];
-    let slow_vals = vec![f64::NAN, f64::NAN, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0];
+    let mut indicators = IndicatorSet::default();
 
-    cols.insert("ema_9", fast_vals);
-    cols.insert("ema_21", slow_vals);
+    indicators.insert(
+        "ema_9",
+        vec![
+            f64::NAN,
+            f64::NAN,
+            98.0,
+            99.0,
+            102.0,
+            104.0,
+            105.0,
+            105.0,
+            105.0,
+            105.0,
+        ],
+    );
 
-    let params = Params::default();
-    let ind_params = HashMap::new();
+    indicators.insert(
+        "ema_21",
+        vec![
+            f64::NAN,
+            f64::NAN,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+        ],
+    );
 
-    let signals = strat.generate_signals(&bars, &cols, &params, &ind_params);
-    assert_eq!(signals.len(), 10);
+    let signals = strategy.generate_signals(
+        &bars,
+        &indicators,
+        &Params::default(),
+        &HashMap::new(),
+    );
 
-    // Cross happens at index 4 (prev_fast 99 <= 100, curr_fast 102 > 100)
-    assert!(signals[4].is_some());
-    let sig4 = signals[4].as_ref().unwrap();
-    assert_eq!(sig4.direction, Direction::Buy);
+    assert_eq!(signals.len(), bars.len());
 
-    // Other indexes should be None
-    for i in [0, 1, 2, 3, 5, 6, 7, 8, 9] {
-        assert!(signals[i].is_none(), "Expected None signal at index {}", i);
+    let signal = signals[4].as_ref().expect("expected buy signal");
+    assert_eq!(signal.direction, Direction::Buy);
+
+    for (i, signal) in signals.iter().enumerate() {
+        if i != 4 {
+            assert!(
+                signal.is_none(),
+                "expected no signal at index {i}"
+            );
+        }
     }
 }
 
 #[test]
-fn test_build_strategy_unknown() {
-    let err = build_strategy("non_existent_strategy");
-    assert!(err.is_err());
+fn rsi_reversion_generates_buy_signal_after_oversold_bounce() {
+    let strategy = build_strategy("rsi_reversion").unwrap();
+
+    let bars: Vec<Bar> = (0..5).map(|i| bar(100.0 + i as f64)).collect();
+
+    let mut indicators = IndicatorSet::default();
+    indicators.insert("rsi_14", vec![50.0, 40.0, 25.0, 20.0, 35.0]);
+
+    let signals = strategy.generate_signals(
+        &bars,
+        &indicators,
+        &Params::default(),
+        &HashMap::new(),
+    );
+
+    let signal = signals[4].as_ref().expect("expected buy signal");
+    assert_eq!(signal.direction, Direction::Buy);
+}
+
+#[test]
+fn rsi_reversion_generates_sell_signal_after_overbought_fade() {
+    let strategy = build_strategy("rsi_reversion").unwrap();
+
+    let bars: Vec<Bar> = (0..5).map(|i| bar(100.0 - i as f64)).collect();
+
+    let mut indicators = IndicatorSet::default();
+    indicators.insert("rsi_14", vec![50.0, 60.0, 75.0, 80.0, 65.0]);
+
+    let signals = strategy.generate_signals(
+        &bars,
+        &indicators,
+        &Params::default(),
+        &HashMap::new(),
+    );
+
+    let signal = signals[4].as_ref().expect("expected sell signal");
+    assert_eq!(signal.direction, Direction::Sell);
+}
+
+#[test]
+fn rsi_reversion_returns_no_signals_when_indicator_is_missing() {
+    let strategy = build_strategy("rsi_reversion").unwrap();
+
+    let bars: Vec<Bar> = (0..3).map(|i| bar(100.0 + i as f64)).collect();
+    let indicators = IndicatorSet::default();
+
+    let signals = strategy.generate_signals(
+        &bars,
+        &indicators,
+        &Params::default(),
+        &HashMap::new(),
+    );
+
+    assert!(signals.iter().all(Option::is_none));
+}
+
+#[test]
+fn build_strategy_returns_error_for_unknown_strategy() {
+    assert!(build_strategy("non_existent_strategy").is_err());
 }
