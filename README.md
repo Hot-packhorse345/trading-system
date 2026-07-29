@@ -1,6 +1,6 @@
 # 🚀 Algorithmic Trading System
 
-A production-grade, high-performance algorithmic trading system written entirely in Rust. Designed for speed, safety, and reliability, it leverages native compilation, memory safety, and zero-overhead parallelism to deliver exceptional performance in both backtesting and live trading environments.
+A high-performance algorithmic trading system written entirely in Rust. Designed for speed, safety, and reliability, it leverages native compilation, memory safety, and zero-overhead parallelism to deliver exceptional performance in both backtesting and live trading environments.
 
 ![Rust 1.75+](https://img.shields.io/badge/Rust-1.75+-CE422B?style=flat&logo=rust&logoColor=white)
 ![License MIT](https://img.shields.io/badge/License-MIT-green?style=flat)
@@ -10,32 +10,41 @@ A production-grade, high-performance algorithmic trading system written entirely
 ---
 
 ## 📋 Table of Contents
-- [✨ Core Features](#-core-features)
-- [🚀 Quick Start](#-quick-start)
-- [🏗️ System Architecture](#-system-architecture)
-- [📁 Project Structure](#-project-structure)
-- [⚙️ Configuration Guide](#-configuration-guide)
-- [🎮 Usage Modes](#-usage-modes)
-- [🖥️ Visualization & Tools](#-visualization--tools)
-- [⚡ Performance](#-performance)
-- [🛡️ Risk Management](#-risk-management)
-- [🧪 Testing & Validation](#-testing--validation)
-- [📦 Deployment](#-deployment)
-- [🛠️ Development](#-development)
-- [🤝 Contributing](#-contributing)
-- [⚠️ Troubleshooting](#-troubleshooting)
-- [📄 License](#-license)
-- [⚠️ Disclaimer](#-disclaimer)
+- [✨ Core Features](#core-features)
+- [🚀 Quick Start](#quick-start)
+- [🏗️ System Architecture](#system-architecture)
+- [📁 Project Structure](#project-structure)
+- [⚙️ Configuration Guide](#configuration-guide)
+- [🎮 Usage Modes](#usage-modes)
+  - [📥 Download Data (tools)](#download-data-tools)
+  - [📊 Backtest Mode](#backtest-mode)
+  - [📡 Live Trading](#live-trading)
+  - [🔁 Walk-Forward Analysis](#walk-forward-analysis)
+  - [🔍 Edge Discovery](#edge-discovery)
+  - [🧰 Tools (Utilities)](#tools-utilities)
+- [🖥️ Visualization & Tools](#visualization-tools)
+- [⚡ Performance](#performance)
+- [🛡️ Risk Management](#risk-management)
+- [🧪 Testing & Validation](#testing-validation)
+- [📦 Deployment](#deployment)
+- [🛠️ Development](#development)
+- [🤝 Contributing](#contributing)
+- [⚠️ Troubleshooting](#troubleshooting)
+- [📄 License](#license)
+- [⚠️ Disclaimer](#disclaimer)
 
 ---
 
+<a id="core-features"></a>
 ## ✨ Core Features
 
-### Three Operating Modes
+### Five Operating Modes
 | Mode | Purpose | Speed | Best For |
 |------|---------|-------|----------|
 | **Backtest** | Historical simulation | 800-1200 combos/sec | Parameter optimization & strategy development |
 | **Live** | Real-time execution | Sub-millisecond | Production trading with Binance or MT5 |
+| **Walkforward** | Rolling in-sample/out-of-sample validation | Grid search per window | Checking a strategy generalizes before going live |
+| **DiscoverEdge** | Automated end-to-end edge discovery pipeline | Multi-phase, per symbol/timeframe | Scanning a broker's catalog for statistically robust edges |
 | **Tools** | Utilities & validation | N/A | Download data, workflow batches, repaint checks, inspections |
 
 ### Key Capabilities
@@ -48,9 +57,12 @@ A production-grade, high-performance algorithmic trading system written entirely
 ✅ **Economic Calendar** — News blackout integration for high-impact events  
 ✅ **Telegram Alerts** — Real-time trade notifications and account reporting  
 ✅ **Multi-layer Caching** — Parquet for OHLCV, SQLite for trades/state, in-memory for indicators  
+✅ **Walk-Forward Analysis** — Rolling in-sample/out-of-sample validation with consensus parameter selection  
+✅ **Automated Edge Discovery** — 8-phase pipeline (repaint gate → probe → WFA → dual-metric confirmation → full backtest → plateau robustness → stress test → cross-asset validation) across an entire broker symbol catalog  
 
 ---
 
+<a id="quick-start"></a>
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -106,12 +118,14 @@ RUST_LOG=info
 
 ---
 
+<a id="system-architecture"></a>
 ## 🏗️ System Architecture
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │                      CLI Layer (clap)                       │
-│       3 subcommands: backtest, live, tools                  │
+│  5 subcommands: backtest, live, walkforward,                │
+│                 tools, discover-edge                        │
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐
@@ -141,37 +155,49 @@ RUST_LOG=info
     └──────────────────────────────────────────┘
 ```
 
-**Two Core Engines:**
+**Core Engines:**
 - **Backtest** — Rayon-parallelized grid search with state resumption
 - **Live** — Tokio async engine with real-time bar/tick streams
+- **Walkforward** — Rolls the backtest engine across overlapping IS/OOS windows and scores generalization
+- **Edge** — Orchestrates walkforward + backtest + plateau/stress/cross-asset checks into a gated discovery pipeline
 
 ---
 
+<a id="project-structure"></a>
 ## 📁 Project Structure
 
 ```text
 trading-system/
- ├── Cargo.toml                  # Workspace with 9 crates
+ ├── Cargo.toml                  # Workspace with 11 crates
  ├── src/
- │   ├── main.rs                 # CLI entry point (backtest, live, tools)
- │   └── commands/               # Command implementations
+ │   ├── main.rs                 # CLI entry point (backtest, live, walkforward, tools, discover-edge)
+ │   └── commands/
+ │       ├── backtest.rs         # `backtest` command
+ │       ├── live.rs             # `live` command
+ │       ├── walkforward.rs      # `walkforward` command
+ │       ├── edge.rs             # `discover-edge` command
+ │       └── tools/              # `tools` subcommands (download, workflow, etc.)
  ├── crates/
  │   ├── ts_core/                # Core types (Bar, Signal, Position, etc.)
  │   ├── risk/                   # Position sizing & stop-loss managers
  │   ├── indicators/             # Technical indicators (EMA, MACD, RSI)
- │   ├── strategy/               # Trading strategies (ema_cross)
+ │   ├── strategy/                # Trading strategies (ema_cross)
  │   ├── data/                   # OHLCV cache, trade DB, state cache
  │   ├── broker/                 # Binance, MT5, Paper adapters
  │   ├── infra/                  # Logging, news calendar, alerts
  │   ├── backtest/               # Backtesting engine (Rayon)
- │   └── live/                   # Live trading engine (Tokio)
+ │   ├── live/                   # Live trading engine (Tokio)
+ │   ├── walkforward/            # Rolling IS/OOS window engine & HTML/Markdown reports
+ │   └── edge/                   # Automated edge-discovery pipeline (gates, plateau, stress, cross-asset)
  ├── configs/
  │   ├── backtest/               # Backtest config JSONs
  │   └── live/                   # Live trading config JSONs
+ ├── docs/
+ │   └── broker/                 # Symbol catalogs consumed by `discover-edge` (FTMO, FXIFY, Binance)
  ├── data/                       # Auto-generated at runtime
  │   ├── ohlcv/                  # Parquet OHLCV cache
  │   ├── indicators/             # Indicator result cache
- │   ├── results/                # CSV backtest results
+ │   ├── results/                # CSV backtest results, edge_discovery_*.json summaries
  │   └── *.db                    # SQLite caches (state, trades)
  ├── README.md                   # This file
  └── .env.example                # Environment variables template
@@ -179,6 +205,7 @@ trading-system/
 
 ---
 
+<a id="configuration-guide"></a>
 ## ⚙️ Configuration Guide
 
 ### Backtest Configuration
@@ -215,8 +242,37 @@ All configs are JSON files with full type checking via Serde.
 }
 ```
 
-**Grid Expansion:** Any array value triggers Cartesian product expansion.  
-*Total combinations = 2 × 2 × 2 = 8 parameter sets.*
+### Grid Expansion
+Backtest configs (`strategy_parameters`, `indicators`, `stop_manager`) support several syntaxes for turning one config into many parameter combinations:
+
+| Syntax | Example | Effect |
+|---|---|---|
+| Plain array | `"slow_period": [21, 50]` | Cartesian-product choice — expands independently against every other array in the config |
+| `#` prefix | `"#levels": [1, 2, 3]` | Fixed/literal value — kept as-is (e.g. an actual array or object parameter), never expanded into combos |
+| `[group]` prefix | `"[stops]stop_pct": [0.02, 0.03]`, `"[stops]tp_pct": [0.04, 0.06]` | Linked/grouped choice — values sharing the same group name are stepped through together (index 0 with index 0, index 1 with index 1, ...) instead of being crossed, so this pair yields 2 combos, not 4 |
+| `$sample` object | `{ "$sample": "range", "start": 0.1, "stop": 0.3, "step": 0.1 }` | Generates a value list from a rule instead of listing every value by hand. Supported types: `range` (`start`/`stop`/`step`), `linspace` (`start`/`stop`/`n`, evenly spaced), `log` (`start`/`stop`/`n`, log-spaced), `values` (`items`, an explicit list) |
+
+**Example combining all three:**
+```json
+{
+  "strategy_parameters": {
+    "fast_period": 9,
+    "slow_period": [21, 50],
+    "[stops]stop_pct": [0.02, 0.03],
+    "[stops]tp_pct": [0.04, 0.06],
+    "#allowed_hours": [8, 9, 10, 11, 12, 13, 14, 15, 16],
+    "atr_multiplier": { "$sample": "linspace", "start": 1.0, "stop": 3.0, "n": 5 }
+  }
+}
+```
+- `slow_period` contributes 2 choices, crossed with everything else.
+- `stop_pct`/`tp_pct` are grouped, so they contribute 2 *linked* choices (not 2 × 2 = 4).
+- `#allowed_hours` is fixed — every combo gets the literal array `[8, 9, ..., 16]` as-is; it isn't expanded.
+- `atr_multiplier` is sampled into 5 evenly spaced values via `linspace`, each crossed with everything else.
+
+*Total combinations = 2 (slow_period) × 2 (linked stop/tp pair) × 1 (fixed hours) × 5 (atr_multiplier) = 20 parameter sets.*
+
+Plain (non-prefixed) nested objects are expanded recursively the same way, which is how per-indicator parameters (e.g. `"ema_slow": { "type": "ema", "period": [21, 50] }`) get their own grids.
 
 ### Live Configuration
 ```json
@@ -253,11 +309,85 @@ All configs are JSON files with full type checking via Serde.
 }
 ```
 
+<a id="walk-forward-configuration"></a>
+### Walk-Forward Configuration
+`walkforward` reads the **same JSON file** as `backtest` — it reuses the grid definition to optimize each in-sample window, and layers a few extra fields on top for the window mechanics and pass/fail thresholds:
+
+```json
+{
+  "is_bars": 2000,
+  "oos_bars": 500,
+  "step_bars": 250,
+  "min_wf_efficiency": 0.5,
+  "min_oos_consistency": 0.6,
+  "min_oos_trades_per_round": 3,
+  "min_oos_consistency_lcb": 0.5,
+  "consistency_confidence_z": 1.96,
+  "metric": "enhanced_score"
+}
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `is_bars` | `2000` | Bars in each in-sample (optimization) window |
+| `oos_bars` | `500` | Bars in each out-of-sample (validation) window |
+| `step_bars` | `250` | Bars the window rolls forward each round |
+| `min_wf_efficiency` | `0.5` | Minimum `mean(OOS score) / mean(IS score)` to pass |
+| `min_oos_consistency` | `0.6` | Minimum fraction of OOS rounds that must be profitable |
+| `min_oos_trades_per_round` | `0` | Rounds with fewer OOS trades than this are excluded from scoring |
+| `min_oos_consistency_lcb` | `0.0` | Minimum Wilson lower-confidence-bound on OOS consistency (stricter than the raw ratio) |
+| `metric` | `"enhanced_score"` | Metric used to rank in-sample combos and score OOS performance |
+
+<a id="edge-discovery-template"></a>
+### Edge Discovery Template
+`discover-edge` reads a **discovery template** — a strategy-agnostic description of what to search over — plus an optional `gates` block controlling every pass/fail threshold in the pipeline:
+
+```json
+{
+  "strategy": "ema_cross",
+  "data_provider": "mt5",
+  "metric": "enhanced_score",
+  "initial_balance": 100000.0,
+  "risk_percentage": 0.001,
+  "pyramiding": false,
+  "stop_manager": [
+    { "type": "variant2", "stop_distance": { "$sample": "range", "start": 0.1, "stop": 0.3, "step": 0.1 }, "start_rr": 1.0 }
+  ],
+  "strategy_parameters": {
+    "fast_period": 9,
+    "slow_period": { "$sample": "values", "items": [21, 34, 50] }
+  },
+  "indicators": {
+    "ema_fast": { "type": "ema", "period": 9 },
+    "ema_slow": { "type": "ema", "period": { "$sample": "values", "items": [21, 34, 50] } }
+  },
+  "gates": {
+    "min_probe_trades": 200,
+    "min_wfe": 0.5,
+    "min_consistency": 0.5,
+    "min_pf": 1.5,
+    "min_sharpe": 0.8,
+    "min_wr": 0.30,
+    "max_dd_pct": 25.0,
+    "min_trades": 200,
+    "min_density": 40.0,
+    "plateau_pass_rate": 0.60,
+    "max_stress_dd_pct": 15.0,
+    "min_cross_asset_correlation": 0.60,
+    "require_cross_asset": false
+  }
+}
+```
+
+`$sample` fields describe a search space (`values`, `range`, `linspace`, or `log`) that the pipeline resolves per phase — e.g. pinned to the first value for cheap probing, expanded to a full grid for walk-forward optimization. All `gates` fields are optional and fall back to the defaults shown above (see `crates/edge/src/gates.rs`).
+
 ---
 
+<a id="usage-modes"></a>
 ## 🎮 Usage Modes
 
-### Download Data (tools)
+<a id="download-data-tools"></a>
+### 📥 Download Data (tools)
 ```bash
 # Download 1 year of BTCUSDT 1h bars
 ./target/release/trading-system tools download \
@@ -269,7 +399,8 @@ for symbol in BTCUSDT ETHUSDT SOLUSDT; do
 done
 ```
 
-### Backtest Mode
+<a id="backtest-mode"></a>
+### 📊 Backtest Mode
 ```bash
 # Single backtest
 ./target/release/trading-system backtest --config configs/backtest/ema_cross.json --top 10
@@ -285,7 +416,8 @@ RUST_LOG=debug ./target/release/trading-system backtest --config configs/backtes
 - `data/results/<strategy_name>_<timestamp>.csv` — All metrics and parameters
 - `data/results/trades_<hash>.csv` — Individual trade records
 
-### Live Trading
+<a id="live-trading"></a>
+### 📡 Live Trading
 ```bash
 # Paper trading (safe for testing)
 ./target/release/trading-system live --config configs/live/paper_ema_cross.json
@@ -300,7 +432,51 @@ RUST_LOG=debug ./target/release/trading-system backtest --config configs/backtes
 - Graceful restart with trade recovery from SQLite
 - Telegram alerts for all critical events
 
-### Tools (Utilities)
+<a id="walk-forward-analysis"></a>
+### 🔁 Walk-Forward Analysis
+```bash
+# Roll the grid in configs/backtest/ema_cross.json across IS/OOS windows
+./target/release/trading-system walkforward \
+  --config configs/backtest/ema_cross.json \
+  --output data/results/wf_report.html
+```
+The command prints a console report (per-window IS/OOS scores, walk-forward efficiency, OOS consistency, verdict) and writes an `.html` or `.md` report (based on the `--output` extension; defaults to a timestamped `.html` under the config's `output_dir`). See [Walk-Forward Configuration](#walk-forward-configuration) for the extra fields the config needs.
+
+<a id="edge-discovery"></a>
+### 🔍 Edge Discovery
+```bash
+# Scan every FTMO symbol at 15m/30m/1h/4h for a robust ema_cross edge
+./target/release/trading-system discover-edge \
+  --template configs/discovery/ema_cross_template.json \
+  --broker ftmo \
+  --timeframes 15m,30m,1h,4h
+
+# Restrict to specific symbols, override the density gate, and resume a prior run
+./target/release/trading-system discover-edge \
+  --template configs/discovery/ema_cross_template.json \
+  --broker ftmo \
+  --symbols EURUSD,XAUUSD \
+  --min-density 30 \
+  --resume data/results/edge_discovery_20250101_120000.json
+```
+
+For every symbol/timeframe pair, `discover-edge` runs an 8-phase gate (each phase can early-exit the pair as a fail):
+
+| Phase | Name | What it checks |
+|---|---|---|
+| 0 | Repaint gate | Rejects strategies whose signals repaint on historical bars |
+| 1 | Probe | Minimum trade density on a fixed-parameter run (`min_probe_trades`) |
+| 2 | Walk-Forward Optimization | Runs `walkforward` over the template's grid; requires it to pass |
+| 3 | Dual-Metric Confirmation | Re-runs walk-forward with the alternate metric to guard against metric overfitting |
+| 4 | Full-Range Backtest | Consensus parameters must clear `min_pf`, `min_sharpe`, `min_wr`, `max_dd_pct`, `min_density` over the full range |
+| 5 | Plateau Robustness | Neighboring parameter combinations around the consensus point must also be profitable |
+| 6 | Synthetic Stress Test | Re-runs with injected black-swan shocks; checks `max_stress_dd_pct` |
+| 7 | Cross-Asset Validation | If a correlated asset is configured, verifies the edge holds there too |
+
+Broker symbol catalogs live in `docs/broker/{FTMO,FXIFY,BINANCE}_SYMBOLS.md`; `--broker` selects which one to load (`ftmo` by default). Results (verdict, metrics, and generated config paths for every phase) are printed as a summary table and written to `data/results/edge_discovery_<timestamp>.json`, which can be passed back in via `--resume` to skip symbols already marked `Passed`/`FailedGate`.
+
+<a id="tools-utilities"></a>
+### 🧰 Tools (Utilities)
 `tools` groups data review, workflow, validation, and deployment commands.
 
 ```bash
@@ -328,6 +504,13 @@ RUST_LOG=debug ./target/release/trading-system backtest --config configs/backtes
   --bars 1000 \
   --test-mode both
 
+# Validate that a full strategy (not just an indicator) doesn't repaint signals
+./target/release/trading-system tools strategy-repaint-check \
+  --config configs/backtest/ema_cross_btcusdt.json \
+  --combo 0 \
+  --bars 1000 \
+  --test-mode both
+
 # Run multiple backtests, rank by Sharpe ratio
 ./target/release/trading-system tools workflow \
   --configs configs/backtest/ema_cross.json configs/backtest/ema_cross_alt.json \
@@ -346,12 +529,21 @@ RUST_LOG=debug ./target/release/trading-system backtest --config configs/backtes
   --rank 1 \
   --trade-executor paper
 
+# Generate discover-edge templates with synthesized parameter grids for every
+# symbol in a broker's catalog
+./target/release/trading-system tools generate-templates \
+  --strategy ema_cross \
+  --broker ftmo \
+  --timeframes 15m,1h \
+  --data-dir data
+
 # Package a live-trading deployment for a VPS
 ./target/release/trading-system tools deploy-live --config configs/live/binance_ema_cross.json
 ```
 
 ---
 
+<a id="visualization-tools"></a>
 ## 🖥️ Visualization & Tools
 
 ### CSV Analysis
@@ -379,6 +571,7 @@ EOF
 
 ---
 
+<a id="performance"></a>
 ## ⚡ Performance
 
 ### Benchmarks
@@ -408,6 +601,7 @@ export RAYON_NUM_THREADS=8
 
 ---
 
+<a id="risk-management"></a>
 ## 🛡️ Risk Management
 
 ### Position Sizing
@@ -446,6 +640,7 @@ export RAYON_NUM_THREADS=8
 
 ---
 
+<a id="testing-validation"></a>
 ## 🧪 Testing & Validation
 
 ### Repaint Detection
@@ -464,8 +659,16 @@ Some indicators "repaint" — past values change on new bars. Use `tools repaint
 - **Forward Simulation** — Feed bars incrementally, check if past values change
 - **Origin Shifting** — Start dataset at different points, verify consistency
 
+The same two test modes apply to `tools strategy-repaint-check`, which checks a full strategy's generated signals (rather than a single indicator's output) for repainting.
+
+### Out-of-Sample Validation
+Beyond repaint checks, two higher-level commands validate that a strategy generalizes rather than just fitting historical noise:
+- **`walkforward`** — rolls a config's grid across overlapping in-sample/out-of-sample windows and reports walk-forward efficiency and OOS consistency. See [Walk-Forward Analysis](#walk-forward-analysis).
+- **`discover-edge`** — runs `walkforward` plus plateau, synthetic stress, and cross-asset checks as part of an 8-phase gate. See [Edge Discovery](#edge-discovery).
+
 ---
 
+<a id="deployment"></a>
 ## 📦 Deployment
 
 ### Linux VPS Setup
@@ -521,6 +724,7 @@ sudo systemctl status trading-system
 
 ---
 
+<a id="development"></a>
 ## 🛠️ Development
 
 ### Adding a New Indicator
@@ -596,6 +800,7 @@ cargo clippy
 
 ---
 
+<a id="troubleshooting"></a>
 ## ⚠️ Troubleshooting
 
 | Issue | Cause | Solution |
@@ -622,6 +827,7 @@ RUST_LOG=trace ./target/release/trading-system live --config configs/live/paper.
 
 ---
 
+<a id="contributing"></a>
 ## 🤝 Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
@@ -630,6 +836,7 @@ strategies, and broker adapters.
 
 ---
 
+<a id="license"></a>
 ## 📄 License
 
 Licensed under the MIT License. See [LICENSE](LICENSE) file for details.
@@ -651,6 +858,7 @@ System architecture
 
 ---
 
+<a id="disclaimer"></a>
 ## ⚠️ Disclaimer
 
 **THIS SOFTWARE IS PROVIDED FOR EDUCATIONAL AND RESEARCH PURPOSES ONLY.**
