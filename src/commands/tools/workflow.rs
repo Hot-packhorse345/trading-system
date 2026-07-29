@@ -11,6 +11,7 @@ use infra::{Notifier, NullNotifier, TelegramNotifier};
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_cmd(
     configs: Vec<PathBuf>,
     workflow_file: Option<PathBuf>,

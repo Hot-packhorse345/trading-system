@@ -23,8 +23,8 @@ pub trait CostModel {
 /// - Never becomes smaller than `min_factor`.
 /// - Never becomes larger than `max_factor`.
 pub struct DynamicSpreadCostModel {
-    avg_range_fast: f64, // ~20-bar EMA
-    avg_range_slow: f64, // ~100-bar EMA
+    avg_range_fast: f64,  // ~20-bar EMA
+    avg_range_slow: f64,  // ~100-bar EMA
     avg_volume_fast: f64, // ~20-bar EMA
     avg_volume_slow: f64, // ~100-bar EMA
     alpha_fast: f64,

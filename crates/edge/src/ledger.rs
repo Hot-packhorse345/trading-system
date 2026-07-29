@@ -107,7 +107,7 @@ mod tests {
             TrialRecord {
                 session_id: "s1".to_string(),
                 timestamp: "t".to_string(),
-                strategy: "rx8".to_string(),
+                strategy: "rsi_reversion".to_string(),
                 symbol: "BTCUSDT".to_string(),
                 tf: "1h".to_string(),
                 gates_hash: "g".to_string(),
@@ -127,7 +127,7 @@ mod tests {
             TrialRecord {
                 session_id: "s2".to_string(),
                 timestamp: "t".to_string(),
-                strategy: "rx8".to_string(),
+                strategy: "rsi_reversion".to_string(),
                 symbol: "BTCUSDT".to_string(),
                 tf: "1h".to_string(),
                 gates_hash: "g".to_string(),
@@ -147,7 +147,7 @@ mod tests {
         ];
         let hashes = unique_holdout_phase2_hashes(
             &records,
-            "rx8",
+            "rsi_reversion",
             "BTCUSDT",
             "1h",
             "2024-01-01",

@@ -78,6 +78,7 @@ struct PendingOrder {
 // Entry execution helper
 // ─────────────────────────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn execute_entry(
     sig: Signal,
     bar: &Bar,
@@ -151,6 +152,7 @@ fn execute_entry(
 // Main simulation
 // ─────────────────────────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 pub fn simulate(
     params: &SimParams<'_>,
     bars: &[Bar],

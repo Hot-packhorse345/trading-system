@@ -8,6 +8,7 @@ use indicators::compute_all;
 use std::path::PathBuf;
 use ts_core::parse_timeframe;
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     config: Option<PathBuf>,
     indicator: Option<String>,

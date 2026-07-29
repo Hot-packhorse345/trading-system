@@ -1,13 +1,13 @@
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
+use crate::catalog::{AssetClass, SymbolMeta};
+use crate::ledger::{append_ledger, TrialRecord};
+use crate::priors::read_priors;
 use anyhow::{Context, Result};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 use strategy::{build_strategy, ParamKind, ParamSpec};
-use crate::catalog::{SymbolMeta, AssetClass};
-use crate::ledger::{TrialRecord, append_ledger};
-use crate::priors::read_priors;
 
 pub fn synthesize_grid(
     schema: &[ParamSpec],
@@ -15,9 +15,15 @@ pub fn synthesize_grid(
     exclude_symbol: &str,
     exclude_date_range: (&str, &str),
 ) -> Result<Value> {
-    let tunable_count = schema.iter().filter(|spec| spec.kind == ParamKind::Tunable).count();
+    let tunable_count = schema
+        .iter()
+        .filter(|spec| spec.kind == ParamKind::Tunable)
+        .count();
     if tunable_count > 3 {
-        return Err(anyhow::anyhow!("Too many tunable parameters: {} (max 3 allowed)", tunable_count));
+        return Err(anyhow::anyhow!(
+            "Too many tunable parameters: {} (max 3 allowed)",
+            tunable_count
+        ));
     }
 
     let mut map = serde_json::Map::new();
@@ -34,7 +40,12 @@ pub fn synthesize_grid(
                             ("", "")
                         };
                         let overlaps = symbol == exclude_symbol
-                            || date_ranges_overlap(p_start, p_end, exclude_date_range.0, exclude_date_range.1);
+                            || date_ranges_overlap(
+                                p_start,
+                                p_end,
+                                exclude_date_range.0,
+                                exclude_date_range.1,
+                            );
                         if !overlaps {
                             usable_priors.push(*val);
                         }
@@ -89,7 +100,11 @@ fn date_ranges_overlap(
     exclude_start: &str,
     exclude_end: &str,
 ) -> bool {
-    if prior_start.is_empty() || prior_end.is_empty() || exclude_start.is_empty() || exclude_end.is_empty() {
+    if prior_start.is_empty()
+        || prior_end.is_empty()
+        || exclude_start.is_empty()
+        || exclude_end.is_empty()
+    {
         return false;
     }
     prior_start <= exclude_end && exclude_start <= prior_end
@@ -101,7 +116,7 @@ fn median(mut values: Vec<f64>) -> f64 {
     }
     values.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let mid = values.len() / 2;
-    if values.len() % 2 == 0 {
+    if values.len().is_multiple_of(2) {
         (values[mid - 1] + values[mid]) / 2.0
     } else {
         values[mid]
@@ -211,6 +226,7 @@ pub fn get_default_skeleton(strategy: &str) -> Result<Value> {
     }))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn enumerate_candidates(
     strategy_name: &str,
     broker: &str,
@@ -243,7 +259,10 @@ pub fn enumerate_candidates(
     // Group symbols by asset class
     let mut asset_groups: HashMap<AssetClass, Vec<SymbolMeta>> = HashMap::new();
     for sym in target_symbols {
-        asset_groups.entry(sym.asset_class.clone()).or_default().push(sym);
+        asset_groups
+            .entry(sym.asset_class.clone())
+            .or_default()
+            .push(sym);
     }
 
     fs::create_dir_all(out_dir)?;
@@ -274,12 +293,8 @@ pub fn enumerate_candidates(
         }
 
         // Synthesize grid once per asset class using the first symbol's name to avoid circular seeding on that asset class
-        let resolved_grid = synthesize_grid(
-            &full_schema,
-            &priors,
-            first_symbol,
-            exclude_date_range,
-        )?;
+        let resolved_grid =
+            synthesize_grid(&full_schema, &priors, first_symbol, exclude_date_range)?;
 
         for tf in timeframes {
             let mut candidate = base_tpl.clone();
@@ -321,7 +336,10 @@ pub fn enumerate_candidates(
 
             // Set provider and other candidate properties
             if let Some(obj) = candidate.as_object_mut() {
-                obj.insert("data_provider".to_string(), Value::String(broker.to_string()));
+                obj.insert(
+                    "data_provider".to_string(),
+                    Value::String(broker.to_string()),
+                );
             }
 
             // Calculate generation_id / hash of the template
@@ -347,8 +365,16 @@ pub fn enumerate_candidates(
                     symbol: s.symbol.clone(),
                     tf: tf.clone(),
                     gates_hash: hash.clone(),
-                    holdout_start: if exclude_date_range.0.is_empty() { None } else { Some(exclude_date_range.0.to_string()) },
-                    holdout_end: if exclude_date_range.1.is_empty() { None } else { Some(exclude_date_range.1.to_string()) },
+                    holdout_start: if exclude_date_range.0.is_empty() {
+                        None
+                    } else {
+                        Some(exclude_date_range.0.to_string())
+                    },
+                    holdout_end: if exclude_date_range.1.is_empty() {
+                        None
+                    } else {
+                        Some(exclude_date_range.1.to_string())
+                    },
                     phase2_hash: None,
                     phase_reached: 0,
                     verdict: "Generated".to_string(),
@@ -376,31 +402,85 @@ mod tests {
 
     #[test]
     fn test_date_ranges_overlap() {
-        assert!(date_ranges_overlap("2024-01-01", "2024-12-31", "2024-06-01", "2024-07-01"));
-        assert!(date_ranges_overlap("2024-01-01", "2024-12-31", "2023-12-01", "2024-01-15"));
-        assert!(date_ranges_overlap("2024-01-01", "2024-12-31", "2024-12-15", "2025-01-15"));
+        assert!(date_ranges_overlap(
+            "2024-01-01",
+            "2024-12-31",
+            "2024-06-01",
+            "2024-07-01"
+        ));
+        assert!(date_ranges_overlap(
+            "2024-01-01",
+            "2024-12-31",
+            "2023-12-01",
+            "2024-01-15"
+        ));
+        assert!(date_ranges_overlap(
+            "2024-01-01",
+            "2024-12-31",
+            "2024-12-15",
+            "2025-01-15"
+        ));
 
         // Exact edge overlap
-        assert!(date_ranges_overlap("2024-01-01", "2024-12-31", "2024-12-31", "2025-01-01"));
+        assert!(date_ranges_overlap(
+            "2024-01-01",
+            "2024-12-31",
+            "2024-12-31",
+            "2025-01-01"
+        ));
 
         // No overlap
-        assert!(!date_ranges_overlap("2024-01-01", "2024-12-31", "2025-01-01", "2025-06-01"));
-        assert!(!date_ranges_overlap("2024-01-01", "2024-12-31", "2023-01-01", "2023-12-31"));
+        assert!(!date_ranges_overlap(
+            "2024-01-01",
+            "2024-12-31",
+            "2025-01-01",
+            "2025-06-01"
+        ));
+        assert!(!date_ranges_overlap(
+            "2024-01-01",
+            "2024-12-31",
+            "2023-01-01",
+            "2023-12-31"
+        ));
     }
 
     #[test]
     fn test_grid_synthesis_cap_error() {
         // Build schema with 4 Tunable params -> should error
         let schema = vec![
-            ParamSpec { key: "a".into(), kind: ParamKind::Tunable, default: 1.0.into(), safe_range: None },
-            ParamSpec { key: "b".into(), kind: ParamKind::Tunable, default: 2.0.into(), safe_range: None },
-            ParamSpec { key: "c".into(), kind: ParamKind::Tunable, default: 3.0.into(), safe_range: None },
-            ParamSpec { key: "d".into(), kind: ParamKind::Tunable, default: 4.0.into(), safe_range: None },
+            ParamSpec {
+                key: "a".into(),
+                kind: ParamKind::Tunable,
+                default: 1.0.into(),
+                safe_range: None,
+            },
+            ParamSpec {
+                key: "b".into(),
+                kind: ParamKind::Tunable,
+                default: 2.0.into(),
+                safe_range: None,
+            },
+            ParamSpec {
+                key: "c".into(),
+                kind: ParamKind::Tunable,
+                default: 3.0.into(),
+                safe_range: None,
+            },
+            ParamSpec {
+                key: "d".into(),
+                kind: ParamKind::Tunable,
+                default: 4.0.into(),
+                safe_range: None,
+            },
         ];
         let priors = HashMap::new();
         let res = synthesize_grid(&schema, &priors, "EURUSD", ("", ""));
         assert!(res.is_err());
-        assert!(res.err().unwrap().to_string().contains("Too many tunable parameters"));
+        assert!(res
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Too many tunable parameters"));
     }
 
     #[test]
@@ -425,14 +505,27 @@ mod tests {
         priors.insert(
             "atr_mult".to_string(),
             vec![
-                (1.0, "GBPUSD".to_string(), "2024-01-01 to 2024-06-01".to_string()),
-                (1.8, "GBPUSD".to_string(), "2024-06-01 to 2024-12-01".to_string()),
-                (2.2, "GBPUSD".to_string(), "2025-01-01 to 2025-06-01".to_string()),
+                (
+                    1.0,
+                    "GBPUSD".to_string(),
+                    "2024-01-01 to 2024-06-01".to_string(),
+                ),
+                (
+                    1.8,
+                    "GBPUSD".to_string(),
+                    "2024-06-01 to 2024-12-01".to_string(),
+                ),
+                (
+                    2.2,
+                    "GBPUSD".to_string(),
+                    "2025-01-01 to 2025-06-01".to_string(),
+                ),
             ],
         );
         // fewer than 2 priors for min_adx -> falls back to default 20.0
 
-        let res = synthesize_grid(&schema, &priors, "EURUSD", ("2026-01-01", "2026-12-31")).unwrap();
+        let res =
+            synthesize_grid(&schema, &priors, "EURUSD", ("2026-01-01", "2026-12-31")).unwrap();
         let grid = res.as_object().unwrap();
 
         // check atr_mult
@@ -448,32 +541,47 @@ mod tests {
 
     #[test]
     fn test_circular_seeding_exclusion() {
-        let schema = vec![
-            ParamSpec {
-                key: "atr_mult".into(),
-                kind: ParamKind::Tunable,
-                default: 1.5.into(),
-                safe_range: Some((0.5, 5.0)),
-            },
-        ];
+        let schema = vec![ParamSpec {
+            key: "atr_mult".into(),
+            kind: ParamKind::Tunable,
+            default: 1.5.into(),
+            safe_range: Some((0.5, 5.0)),
+        }];
 
         let mut priors = HashMap::new();
         priors.insert(
             "atr_mult".to_string(),
             vec![
                 // Overlaps symbol EURUSD -> exclude
-                (1.0, "EURUSD".to_string(), "2024-01-01 to 2024-06-01".to_string()),
+                (
+                    1.0,
+                    "EURUSD".to_string(),
+                    "2024-01-01 to 2024-06-01".to_string(),
+                ),
                 // Overlaps date-range -> exclude
-                (1.8, "GBPUSD".to_string(), "2026-06-01 to 2026-12-01".to_string()),
+                (
+                    1.8,
+                    "GBPUSD".to_string(),
+                    "2026-06-01 to 2026-12-01".to_string(),
+                ),
                 // Clean prior -> include
-                (2.2, "GBPUSD".to_string(), "2024-01-01 to 2024-12-01".to_string()),
+                (
+                    2.2,
+                    "GBPUSD".to_string(),
+                    "2024-01-01 to 2024-12-01".to_string(),
+                ),
                 // Clean prior -> include
-                (2.4, "GBPUSD".to_string(), "2025-01-01 to 2025-12-31".to_string()),
+                (
+                    2.4,
+                    "GBPUSD".to_string(),
+                    "2025-01-01 to 2025-12-31".to_string(),
+                ),
             ],
         );
 
         // Current validation on EURUSD for date range 2026-01-01 to 2026-12-31
-        let res = synthesize_grid(&schema, &priors, "EURUSD", ("2026-01-01", "2026-12-31")).unwrap();
+        let res =
+            synthesize_grid(&schema, &priors, "EURUSD", ("2026-01-01", "2026-12-31")).unwrap();
         let grid = res.as_object().unwrap();
 
         // 2 clean priors: 2.2 and 2.4 -> median is 2.3

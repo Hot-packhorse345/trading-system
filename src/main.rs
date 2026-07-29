@@ -96,15 +96,7 @@ async fn main() -> Result<()> {
             min_density,
             resume,
         } => {
-            commands::edge::run(
-                template,
-                broker,
-                symbols,
-                timeframes,
-                min_density,
-                resume,
-            )
-            .await?
+            commands::edge::run(template, broker, symbols, timeframes, min_density, resume).await?
         }
     }
 

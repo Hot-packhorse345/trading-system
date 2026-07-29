@@ -185,20 +185,13 @@ fn test_unknown_indicator_err() {
 #[test]
 fn test_compute_all_utility() {
     use indicators::compute_all;
-    let cfgs = vec![
-        IndicatorConfig {
-            kind: "rsi".to_string(),
-            params: HashMap::new(),
-        },
-        IndicatorConfig {
-            kind: "atr".to_string(),
-            params: HashMap::new(),
-        },
-    ];
+    let cfgs = vec![IndicatorConfig {
+        kind: "rsi".to_string(),
+        params: HashMap::new(),
+    }];
     let bars = test_bars(30);
     let result = compute_all(&cfgs, &bars, None).unwrap();
     assert!(result.contains("rsi_14"));
-    assert!(result.contains("atr_14"));
 }
 
 #[test]

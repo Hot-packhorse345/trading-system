@@ -13,7 +13,6 @@ fn test_walkforward_config_deserialization() {
         "min_oos_consistency": 0.5,
         "metric": "sharpe"
     }"#;
-
     let config: WalkforwardConfig = serde_json::from_str(json).unwrap();
     assert_eq!(config.is_bars, 1000);
     assert_eq!(config.oos_bars, 300);
@@ -71,12 +70,10 @@ fn test_walkforward_report_calculations() {
     ];
 
     let report = WfReport::build(rounds, &config);
-
     assert_eq!(report.mean_is_score, 2.0);
     assert_eq!(report.mean_oos_score, 1.0);
     assert_eq!(report.wf_efficiency, 0.5);
     assert_eq!(report.oos_consistency, 0.5);
-
     assert!(!report.passed);
 
     // Call print to cover print output code paths
@@ -115,7 +112,7 @@ fn test_walkforward_report_calculations() {
 #[test]
 fn test_walkforward_engine_run() {
     let base_json = json!({
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "15m",
         "stop_timeframe": "timeframe",
@@ -128,27 +125,16 @@ fn test_walkforward_engine_run() {
         "commission_percent": 0.0003,
         "stop_manager": {
             "type": "fixed",
-            "fixed_sl_pts": 10.0,
-            "fixed_tp_pts": 20.0
+            "stop_distance": 10.0,
+            "start_rr": 0.0
         },
         "strategy_parameters": {
-            "cross_only": [false],
-            "model_type": "reversal",
-            "rsi_upper_threshold": [70],
-            "rsi_lower_threshold": [30]
+            "stop_pct": 0.02,
+            "tp_pct": 0.04
         },
         "indicators": {
-            "rsi": {
-                "type": "rsi",
-                "source": "close",
-                "timeperiod": [2]
-            },
-            "stop_loss_finder": {
-                "type": "stop_loss_finder",
-                "length": 2,
-                "multiplier": 0.1,
-                "smoothing": "RMA"
-            }
+            "ema_fast": { "type": "ema", "period": 5 },
+            "ema_slow": { "type": "ema", "period": 10 }
         }
     });
     let base: BacktestConfig = serde_json::from_value(base_json).unwrap();
@@ -168,16 +154,22 @@ fn test_walkforward_engine_run() {
     let symbol = "BTCUSDT";
     let timeframe = Timeframe::M15;
 
-    // Generate oscillating bars to trigger indicator changes and entries
+    // Generate V-shaped bars to trigger an EMA golden cross (Buy signal).
+    // Without signals, the walk-forward engine scores the round as NEG_INFINITY
+    // and skips it, resulting in an empty rounds vector.
     let mut bars = Vec::new();
     let start_time = 1719000000;
     for i in 0..30 {
-        let price = if i % 2 == 0 { 100.0 } else { 120.0 };
+        let price = if i < 10 {
+            100.0 - i as f64 * 2.0 // Downtrend (fast EMA < slow EMA)
+        } else {
+            80.0 + (i - 10) as f64 * 3.0 // Uptrend (fast EMA crosses above slow EMA)
+        };
         bars.push(Bar {
             time: start_time + i * 900,
             open: price,
-            high: price + 10.0,
-            low: price - 10.0,
+            high: price + 2.0,
+            low: price - 2.0,
             close: price,
             volume: 1000.0,
         });
@@ -374,7 +366,6 @@ fn test_walkforward_config_partial_fields() {
         "is_bars": 3000,
         "metric": "sharpe"
     }"#;
-
     let config: WalkforwardConfig = serde_json::from_str(json).unwrap();
     assert_eq!(config.is_bars, 3000);
     assert_eq!(config.oos_bars, 500); // default

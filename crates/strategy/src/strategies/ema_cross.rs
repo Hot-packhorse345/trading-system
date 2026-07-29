@@ -1,4 +1,7 @@
-use crate::{Strategy, schema::{ParamSpec, ParamKind}};
+use crate::{
+    schema::{ParamKind, ParamSpec},
+    Strategy,
+};
 use std::collections::HashMap;
 use ts_core::{Bar, Direction, IndicatorSet, Params, Signal};
 
@@ -15,11 +18,13 @@ impl Strategy for EmaCross {
         let mut signals = vec![None; bars.len()];
 
         // Allow periods to be defined in strategy params or indicator params
-        let fast_period = ind_params.get("ema_fast")
+        let fast_period = ind_params
+            .get("ema_fast")
             .and_then(|p| p.u64("period").or_else(|| p.u64("timeperiod")))
             .unwrap_or(params.u64_or("fast_period", 9)) as usize;
 
-        let slow_period = ind_params.get("ema_slow")
+        let slow_period = ind_params
+            .get("ema_slow")
             .and_then(|p| p.u64("period").or_else(|| p.u64("timeperiod")))
             .unwrap_or(params.u64_or("slow_period", 21)) as usize;
 
@@ -42,7 +47,8 @@ impl Strategy for EmaCross {
             let curr_fast = fast_ema[i];
             let curr_slow = slow_ema[i];
 
-            if prev_fast.is_nan() || prev_slow.is_nan() || curr_fast.is_nan() || curr_slow.is_nan() {
+            if prev_fast.is_nan() || prev_slow.is_nan() || curr_fast.is_nan() || curr_slow.is_nan()
+            {
                 continue;
             }
 
@@ -66,10 +72,30 @@ impl Strategy for EmaCross {
 
     fn param_schema(&self) -> Vec<ParamSpec> {
         vec![
-            ParamSpec { key: "fast_period".to_string(), kind: ParamKind::Structural, default: serde_json::json!(9), safe_range: None },
-            ParamSpec { key: "slow_period".to_string(), kind: ParamKind::Structural, default: serde_json::json!(21), safe_range: None },
-            ParamSpec { key: "stop_pct".to_string(), kind: ParamKind::Tunable, default: serde_json::json!(0.02), safe_range: Some((0.005, 0.1)) },
-            ParamSpec { key: "tp_pct".to_string(), kind: ParamKind::Tunable, default: serde_json::json!(0.04), safe_range: Some((0.01, 0.2)) },
+            ParamSpec {
+                key: "fast_period".to_string(),
+                kind: ParamKind::Structural,
+                default: serde_json::json!(9),
+                safe_range: None,
+            },
+            ParamSpec {
+                key: "slow_period".to_string(),
+                kind: ParamKind::Structural,
+                default: serde_json::json!(21),
+                safe_range: None,
+            },
+            ParamSpec {
+                key: "stop_pct".to_string(),
+                kind: ParamKind::Tunable,
+                default: serde_json::json!(0.02),
+                safe_range: Some((0.005, 0.1)),
+            },
+            ParamSpec {
+                key: "tp_pct".to_string(),
+                kind: ParamKind::Tunable,
+                default: serde_json::json!(0.04),
+                safe_range: Some((0.01, 0.2)),
+            },
         ]
     }
 }

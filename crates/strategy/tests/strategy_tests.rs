@@ -61,12 +61,8 @@ fn ema_cross_generates_buy_signal_on_bullish_cross() {
         ],
     );
 
-    let signals = strategy.generate_signals(
-        &bars,
-        &indicators,
-        &Params::default(),
-        &HashMap::new(),
-    );
+    let signals =
+        strategy.generate_signals(&bars, &indicators, &Params::default(), &HashMap::new());
 
     assert_eq!(signals.len(), bars.len());
 
@@ -75,10 +71,7 @@ fn ema_cross_generates_buy_signal_on_bullish_cross() {
 
     for (i, signal) in signals.iter().enumerate() {
         if i != 4 {
-            assert!(
-                signal.is_none(),
-                "expected no signal at index {i}"
-            );
+            assert!(signal.is_none(), "expected no signal at index {i}");
         }
     }
 }
@@ -92,12 +85,8 @@ fn rsi_reversion_generates_buy_signal_after_oversold_bounce() {
     let mut indicators = IndicatorSet::default();
     indicators.insert("rsi_14", vec![50.0, 40.0, 25.0, 20.0, 35.0]);
 
-    let signals = strategy.generate_signals(
-        &bars,
-        &indicators,
-        &Params::default(),
-        &HashMap::new(),
-    );
+    let signals =
+        strategy.generate_signals(&bars, &indicators, &Params::default(), &HashMap::new());
 
     let signal = signals[4].as_ref().expect("expected buy signal");
     assert_eq!(signal.direction, Direction::Buy);
@@ -112,12 +101,8 @@ fn rsi_reversion_generates_sell_signal_after_overbought_fade() {
     let mut indicators = IndicatorSet::default();
     indicators.insert("rsi_14", vec![50.0, 60.0, 75.0, 80.0, 65.0]);
 
-    let signals = strategy.generate_signals(
-        &bars,
-        &indicators,
-        &Params::default(),
-        &HashMap::new(),
-    );
+    let signals =
+        strategy.generate_signals(&bars, &indicators, &Params::default(), &HashMap::new());
 
     let signal = signals[4].as_ref().expect("expected sell signal");
     assert_eq!(signal.direction, Direction::Sell);
@@ -130,12 +115,8 @@ fn rsi_reversion_returns_no_signals_when_indicator_is_missing() {
     let bars: Vec<Bar> = (0..3).map(|i| bar(100.0 + i as f64)).collect();
     let indicators = IndicatorSet::default();
 
-    let signals = strategy.generate_signals(
-        &bars,
-        &indicators,
-        &Params::default(),
-        &HashMap::new(),
-    );
+    let signals =
+        strategy.generate_signals(&bars, &indicators, &Params::default(), &HashMap::new());
 
     assert!(signals.iter().all(Option::is_none));
 }

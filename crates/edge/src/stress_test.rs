@@ -122,7 +122,14 @@ mod tests {
         (0..n)
             .map(|i| {
                 let price = 100.0 + (i as f64 * 0.01).sin() * 2.0;
-                Bar::new(i as i64 * 60, price, price + 0.1, price - 0.1, price, 1000.0)
+                Bar::new(
+                    i as i64 * 60,
+                    price,
+                    price + 0.1,
+                    price - 0.1,
+                    price,
+                    1000.0,
+                )
             })
             .collect()
     }

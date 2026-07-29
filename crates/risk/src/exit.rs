@@ -3,6 +3,7 @@ use ts_core::{Bar, Direction, IndicatorSet, Params, Position, Signal};
 // ── Trait ─────────────────────────────────────────────────────────────────────
 
 pub trait ExitManager: Send + Sync {
+    #[allow(clippy::too_many_arguments)]
     fn should_exit(
         &self,
         position: &Position,
@@ -16,6 +17,7 @@ pub trait ExitManager: Send + Sync {
 }
 
 /// True if any exit manager in `exit_mgrs` decides `position` should be closed now.
+#[allow(clippy::too_many_arguments)]
 pub fn any_should_exit(
     exit_mgrs: &[Box<dyn ExitManager>],
     position: &Position,

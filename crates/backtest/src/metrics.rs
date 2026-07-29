@@ -27,17 +27,17 @@ pub struct Metrics {
     pub worst_segment_dd_pct: f64, // worst segment drawdown %
     pub longest_win_streak: usize,
     pub longest_loss_streak: usize,
-    pub volatility_r: f64,  // population std-dev of R values
-    pub sharpe_ratio: f64,  // mean_R / std_R (population std)
+    pub volatility_r: f64,      // population std-dev of R values
+    pub sharpe_ratio: f64,      // mean_R / std_R (population std)
     pub sharpe_annualized: f64, // annualized daily Sharpe (√252)
-    pub sortino_ratio: f64, // mean_R / downside_std_R
+    pub sortino_ratio: f64,     // mean_R / downside_std_R
     pub long_sharpe_ratio: f64,
     pub short_sharpe_ratio: f64,
     pub profit_bias: f64, // long_total_r / short_total_r
     pub net_profit: f64,  // total_r * risk_amount ($)
     pub final_balance: f64,
     pub total_swap_cost: f64, // $ sum of swap credits/costs (negative = net cost)
-    pub recovery_factor: f64,   // net_profit / max_drawdown
+    pub recovery_factor: f64, // net_profit / max_drawdown
     pub performance_score: f64, // composite score
     // ── Enhanced metrics ──
     pub calmar_ratio: f64,        // annualized return / max_drawdown
@@ -47,6 +47,7 @@ pub struct Metrics {
     pub trades_significance: f64, // statistical significance factor (0-1)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn compute_metrics(
     trades: &[TradeRecord],
     start_ts: i64,
@@ -56,7 +57,7 @@ pub fn compute_metrics(
     commission_pct: f64,
     commission_per_lot: f64,
     swap: &SwapConfig,
-    tick_value: f64
+    tick_value: f64,
 ) -> Metrics {
     if trades.is_empty() {
         return Metrics {
@@ -103,13 +104,8 @@ pub fn compute_metrics(
         let r_gross = t.r_multiple();
         let comm_r = (t.entry_price + t.exit_price) * t.volume * commission_pct * inv_risk
             + commission_per_lot * t.volume * 2.0 * inv_risk;
-        let swap_cost = swap.trade_swap_cost(
-            t.direction,
-            t.volume,
-            t.entry_time,
-            t.exit_time,
-            tick_value,
-        );
+        let swap_cost =
+            swap.trade_swap_cost(t.direction, t.volume, t.entry_time, t.exit_time, tick_value);
         total_swap_cost += swap_cost;
         // swap_cost is already signed (negative = cost, positive = credit),
         // unlike comm_r which is always a positive deduction.
@@ -350,7 +346,8 @@ fn calc_annualized_sharpe(exit_r_pairs: &[(i64, f64)], start_ts: i64, end_ts: i6
         // 1970-01-01 was Thursday.
         // day % 7: 0=Thu, 1=Fri, 2=Sat, 3=Sun, 4=Mon, 5=Tue, 6=Wed
         let dow = day.rem_euclid(7);
-        if dow != 2 && dow != 3 { // Exclude Sat, Sun
+        if dow != 2 && dow != 3 {
+            // Exclude Sat, Sun
             daily_returns.push(*daily_r.get(&day).unwrap_or(&0.0));
         }
     }
@@ -360,7 +357,11 @@ fn calc_annualized_sharpe(exit_r_pairs: &[(i64, f64)], start_ts: i64, end_ts: i6
     }
 
     let mean = daily_returns.iter().sum::<f64>() / daily_returns.len() as f64;
-    let var = daily_returns.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / daily_returns.len() as f64;
+    let var = daily_returns
+        .iter()
+        .map(|&x| (x - mean).powi(2))
+        .sum::<f64>()
+        / daily_returns.len() as f64;
     let std = var.sqrt();
 
     if std == 0.0 {
@@ -565,6 +566,7 @@ fn calc_trades_significance(num_trades: f64, win_rate: f64) -> f64 {
 ///   5. Significance:            multiplicative penalty for few trades
 ///
 /// Higher is better. A score above ~10 indicates a strong, robust strategy.
+#[allow(clippy::too_many_arguments)]
 fn calc_enhanced_score(
     total_r: f64,
     max_dd_pct: f64,

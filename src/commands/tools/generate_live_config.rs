@@ -5,6 +5,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 use tracing::{info, warn};
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     csv_path: PathBuf,
     backtest_config: Option<PathBuf>,

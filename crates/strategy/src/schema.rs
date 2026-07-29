@@ -21,15 +21,15 @@ mod tests {
 
     #[test]
     fn test_schema_defaults_match_code() {
-        let strategies = vec![
-            "ema_cross"
-        ];
+        let strategies = vec!["ema_cross"];
         for name in strategies {
             let strategy = build_strategy(name).unwrap();
             let schema = strategy.param_schema();
             let file_path = format!("src/strategies/{}.rs", name);
             let content = fs::read_to_string(&file_path)
-                .or_else(|_| fs::read_to_string(format!("crates/strategy/src/strategies/{}.rs", name)))
+                .or_else(|_| {
+                    fs::read_to_string(format!("crates/strategy/src/strategies/{}.rs", name))
+                })
                 .expect(&format!("Could not read strategy file {}", file_path));
 
             for spec in schema {
@@ -53,10 +53,19 @@ mod tests {
                             let val = num.as_f64().unwrap();
                             let pattern1 = format!("f64_or(\"{}\", {})", key, val);
                             let pattern2 = format!("f64_or(\"{}\", {:.1})", key, val);
+
+                            let mut found =
+                                content.contains(&pattern1) || content.contains(&pattern2);
+
+                            if let Some(u64_val) = num.as_u64() {
+                                let pattern3 = format!("u64_or(\"{}\", {})", key, u64_val);
+                                found = found || content.contains(&pattern3);
+                            }
+
                             assert!(
-                                content.contains(&pattern1) || content.contains(&pattern2),
-                                "Strategy {} has schema key {} with default {} but code does not contain '{}' or '{}'",
-                                name, key, val, pattern1, pattern2
+                                found,
+                                "Strategy {} has schema key {} with default {} but code does not contain f64_or or u64_or for it",
+                                name, key, val
                             );
                         }
                         serde_json::Value::String(s) => {

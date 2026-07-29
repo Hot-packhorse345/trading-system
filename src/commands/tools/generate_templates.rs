@@ -1,10 +1,11 @@
 use anyhow::{Context, Result};
-use std::path::{Path, PathBuf};
-use strategy::{build_strategy, ParamSpec, ParamKind};
 use edge::catalog::{load_broker_catalog, AssetClass};
-use edge::priors::read_priors;
 use edge::generator::enumerate_candidates;
+use edge::priors::read_priors;
+use std::path::{Path, PathBuf};
+use strategy::{build_strategy, ParamKind, ParamSpec};
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     strategy: String,
     broker: String,
@@ -39,18 +40,20 @@ pub async fn run(
         normalized_timeframes = vec!["1h".to_string(), "4h".to_string()];
     }
 
-    let target_asset_class = asset_class.as_ref().map(|ac| match ac.to_lowercase().as_str() {
-        "forex" => AssetClass::Forex,
-        "index" | "indices" => AssetClass::Index,
-        "commodity" | "commodities" | "metals" => AssetClass::Commodity,
-        "crypto" => AssetClass::Crypto,
-        _ => AssetClass::Unknown,
-    });
+    let target_asset_class = asset_class
+        .as_ref()
+        .map(|ac| match ac.to_lowercase().as_str() {
+            "forex" => AssetClass::Forex,
+            "index" | "indices" => AssetClass::Index,
+            "commodity" | "commodities" | "metals" => AssetClass::Commodity,
+            "crypto" => AssetClass::Crypto,
+            _ => AssetClass::Unknown,
+        });
 
     // 2. Filter symbols by asset class
     let catalog = load_broker_catalog(&broker)
         .with_context(|| format!("failed to load catalog for {}", broker))?;
-    
+
     let mut filtered_symbols = Vec::new();
     let mut asset_classes_present = std::collections::HashSet::new();
     for item in &catalog {
@@ -67,7 +70,10 @@ pub async fn run(
     }
 
     if filtered_symbols.is_empty() {
-        println!("No matching symbols found for broker {} (asset class: {:?})", broker, asset_class);
+        println!(
+            "No matching symbols found for broker {} (asset class: {:?})",
+            broker, asset_class
+        );
         return Ok(());
     }
 
@@ -90,7 +96,11 @@ pub async fn run(
         &session_id,
     )?;
 
-    println!("Generated {} template files in {}", candidates.len(), out_dir.display());
+    println!(
+        "Generated {} template files in {}",
+        candidates.len(),
+        out_dir.display()
+    );
 
     // 4. Print summary table
     let strategy_obj = build_strategy(&strategy)?;
@@ -123,7 +133,10 @@ pub async fn run(
     println!("\n╔═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗");
     println!("║                                           TEMPLATE GENERATION SUMMARY                                                   ║");
     println!("╠═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣");
-    println!("║ {:<15} | {:<5} | {:<40} | {:<50} ║", "Asset Class", "TF", "Tunable Params", "Grid-Center Source (Param: Source)");
+    println!(
+        "║ {:<15} | {:<5} | {:<40} | {:<50} ║",
+        "Asset Class", "TF", "Tunable Params", "Grid-Center Source (Param: Source)"
+    );
     println!("╠═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣");
 
     for ac in asset_classes_present {
@@ -150,14 +163,21 @@ pub async fn run(
                         ("", "")
                     };
                     let overlaps = symbol == symbol_in_class
-                        || ( !ex_start.is_empty() && !ex_end.is_empty() && p_start <= ex_end.as_str() && ex_start.as_str() <= p_end );
+                        || (!ex_start.is_empty()
+                            && !ex_end.is_empty()
+                            && p_start <= ex_end.as_str()
+                            && ex_start.as_str() <= p_end);
                     if !overlaps {
                         usable_count += 1;
                     }
                 }
             }
 
-            let source = if usable_count >= 2 { "prior" } else { "default" };
+            let source = if usable_count >= 2 {
+                "prior"
+            } else {
+                "default"
+            };
             sources.push(format!("{}: {}", spec.key, source));
         }
 

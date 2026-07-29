@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use ts_core::Direction;
 
 /// How overnight rollover is charged across non-trading (weekend) nights.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RolloverMode {
     /// Charge the plain per-night rate for every rollover boundary crossed,
@@ -33,6 +33,7 @@ pub enum RolloverMode {
     /// Simplest model; slightly overstates real-world cost since most
     /// brokers don't roll positions when the market is shut, but it never
     /// silently understates carrying cost. **Default.**
+    #[default]
     EveryNight,
     /// Broker/MT5 convention: 1x on ordinary weeknight rollovers, 0x on
     /// Saturday and Sunday, and `wednesday_multiplier`x (typically 3.0) on
@@ -42,12 +43,6 @@ pub enum RolloverMode {
     /// Wednesday compensation. Understates real broker cost (most brokers do
     /// apply the Wednesday 3x) but matches literal market-open hours.
     WeekdaysOnly,
-}
-
-impl Default for RolloverMode {
-    fn default() -> Self {
-        RolloverMode::EveryNight
-    }
 }
 
 /// Overnight swap configuration for one symbol/combo.
@@ -127,7 +122,13 @@ impl SwapConfig {
         if rate == 0.0 {
             return 0.0;
         }
-        let units = rollover_units(entry_time, exit_time, self.rollover_hour_utc, self.rollover_mode, self.wednesday_multiplier);
+        let units = rollover_units(
+            entry_time,
+            exit_time,
+            self.rollover_hour_utc,
+            self.rollover_mode,
+            self.wednesday_multiplier,
+        );
         rate * volume * units
     }
 }

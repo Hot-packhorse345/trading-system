@@ -6,7 +6,7 @@ use backtest::{
     report::{write_csv, write_trades_csv},
     result::BacktestResult,
     simulator::{simulate, SimParams},
-    swap::SwapConfig
+    swap::SwapConfig,
 };
 use risk::{exit::StrategyExit, volume::FixedPercent, ExitManager};
 use serde_json::json;
@@ -23,7 +23,6 @@ fn test_parse_duration() {
     assert_eq!(parse_duration("1_week").unwrap().num_weeks(), 1);
     assert_eq!(parse_duration("1_month").unwrap().num_days(), 30);
     assert_eq!(parse_duration("1_year").unwrap().num_days(), 365);
-
     assert!(parse_duration("invalid").is_err());
     assert!(parse_duration("abc_minute").is_err());
     assert!(parse_duration("10_invalid_unit").is_err());
@@ -41,7 +40,17 @@ fn test_resolve_stop_tf() {
 
 #[test]
 fn test_compute_metrics_empty() {
-    let metrics = compute_metrics(&[], 0, 86400 * 365 * 5, 10000.0, 0.01, 0.001, 0.0, &SwapConfig::none(), 0.0);
+    let metrics = compute_metrics(
+        &[],
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.001,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
     assert_eq!(metrics.total_trades, 0);
     assert_eq!(metrics.final_balance, 10000.0);
 }
@@ -67,8 +76,17 @@ fn test_compute_metrics_single_win() {
         currency_pnl: 100.0,
         group_id: 1,
     }];
-
-    let metrics = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.001, 0.5, &SwapConfig::none(), 0.0);
+    let metrics = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.001,
+        0.5,
+        &SwapConfig::none(),
+        0.0,
+    );
     assert_eq!(metrics.total_trades, 1);
     assert_eq!(metrics.winning_trades, 1);
     assert_eq!(metrics.losing_trades, 0);
@@ -117,8 +135,17 @@ fn test_compute_metrics_win_loss() {
             group_id: 1,
         },
     ];
-
-    let metrics = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
+    let metrics = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
     assert_eq!(metrics.total_trades, 2);
     assert_eq!(metrics.winning_trades, 1);
     assert_eq!(metrics.losing_trades, 1);
@@ -130,7 +157,7 @@ fn test_compute_metrics_win_loss() {
 #[test]
 fn test_grid_generation() {
     let config_json = json!({
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": ["BTCUSDT", "ETHUSDT"],
         "timeframe": ["15m", "1h"],
         "stop_timeframe": "timeframe",
@@ -143,40 +170,33 @@ fn test_grid_generation() {
         "commission_percent": 0.0003,
         "stop_manager": {
             "type": "fixed",
-            "fixed_sl_pts": 10.0,
-            "fixed_tp_pts": 20.0
+            "stop_distance": 10.0,
+            "start_rr": 0.0
         },
         "strategy_parameters": {
-            "cross_only": [true, false]
+            "stop_pct": [0.02, 0.03]
         },
         "indicators": {
-            "rsi": {
-                "type": "rsi",
-                "source": "close",
-                "timeperiod": [14]
-            }
+            "ema_fast": { "type": "ema", "period": 9 },
+            "ema_slow": { "type": "ema", "period": [21, 50] }
         }
     });
-
     let config: BacktestConfig = serde_json::from_value(config_json).unwrap();
-
     let combos = generate_combos(&config).unwrap();
-    assert_eq!(combos.len(), 8);
-
+    assert_eq!(combos.len(), 16);
     let group_specs = generate_group_specs(&config).unwrap();
-    assert_eq!(group_specs.len(), 8);
+    assert_eq!(group_specs.len(), 16);
     for spec in &group_specs {
         assert_eq!(spec.stop_managers.len(), 1);
     }
-
     let count = count_combos(&config).unwrap();
-    assert_eq!(count, 8);
+    assert_eq!(count, 16);
 }
 
 #[test]
 fn test_grid_generation_advanced() {
     let config_json = json!({
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "15m",
         "stop_timeframe": "timeframe",
@@ -188,8 +208,8 @@ fn test_grid_generation_advanced() {
         "risk_percentage": 0.001,
         "stop_manager": {
             "type": "fixed",
-            "fixed_sl_pts": 10.0,
-            "fixed_tp_pts": 20.0
+            "stop_distance": 10.0,
+            "start_rr": 0.0
         },
         "strategy_parameters": {
             // Literal fixed parameter prefix
@@ -233,9 +253,11 @@ fn test_grid_generation_advanced() {
                 { "obj_p": 2 }
             ]
         },
-        "indicators": {}
+        "indicators": {
+            "ema_fast": { "type": "ema", "period": 9 },
+            "ema_slow": { "type": "ema", "period": 21 }
+        }
     });
-
     let config: BacktestConfig = serde_json::from_value(config_json).unwrap();
     let combos = generate_combos(&config).unwrap();
     assert_eq!(combos.len(), 128);
@@ -244,7 +266,7 @@ fn test_grid_generation_advanced() {
 #[test]
 fn test_grid_generation_grouped_indicators() {
     let config_json = json!({
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "15m",
         "stop_timeframe": "timeframe",
@@ -256,8 +278,8 @@ fn test_grid_generation_grouped_indicators() {
         "risk_percentage": 0.001,
         "stop_manager": {
             "type": "fixed",
-            "fixed_sl_pts": 10.0,
-            "fixed_tp_pts": 20.0
+            "stop_distance": 10.0,
+            "start_rr": 0.0
         },
         "strategy_parameters": {},
         "indicators": {
@@ -270,19 +292,13 @@ fn test_grid_generation_grouped_indicators() {
                 "type": "ema",
                 "period": 50,
                 "[g]timeframe": ["30m", "1h", "4h", "1d"]
-            },
-            "adx": {
-                "type": "adx",
-                "period": 14,
-                "[g]timeframe": ["30m", "1h", "4h", "1d"]
             }
         }
     });
-
     let config: BacktestConfig = serde_json::from_value(config_json).unwrap();
     let combos = generate_combos(&config).unwrap();
-    // Since the 3 timeframes are grouped as 'g', they should only produce 4 combinations
-    // instead of 4 * 4 * 4 = 64 combinations.
+    // Since the 4 timeframes are grouped as 'g', they should only produce 4 combinations
+    // instead of 4 * 4 = 16 combinations.
     assert_eq!(combos.len(), 4);
     for combo in &combos {
         let tf1 = combo
@@ -299,27 +315,20 @@ fn test_grid_generation_grouped_indicators() {
             .unwrap()
             .timeframe
             .as_deref();
-        let tf3 = combo
-            .indicators
-            .iter()
-            .find(|i| i.name == "adx")
-            .unwrap()
-            .timeframe
-            .as_deref();
         assert_eq!(tf1, tf2);
-        assert_eq!(tf2, tf3);
     }
 }
 
 #[test]
 fn test_simulator_simulate() {
     let mut strategy_params = HashMap::new();
-    strategy_params.insert("cross_only".to_string(), json!(true));
+    strategy_params.insert("stop_pct".to_string(), json!(0.02));
+    strategy_params.insert("tp_pct".to_string(), json!(0.04));
 
     let stop_manager_json = json!({
         "type": "fixed",
-        "fixed_sl_pts": 10.0,
-        "fixed_tp_pts": 20.0
+        "stop_distance": 10.0,
+        "start_rr": 0.0
     });
     let stop_config = serde_json::from_value(stop_manager_json).unwrap();
 
@@ -373,7 +382,6 @@ fn test_simulator_simulate() {
             volume: 1300.0,
         },
     ];
-
     let cols = IndicatorSet::default();
     let signals = vec![
         Some(Signal::new(Direction::Buy, 100.0, 90.0, 120.0)),
@@ -381,7 +389,6 @@ fn test_simulator_simulate() {
         None,
         None,
     ];
-
     let symbol_info = SymbolInfo {
         symbol: "BTCUSDT".to_string(),
         spread: 0.0,
@@ -395,7 +402,6 @@ fn test_simulator_simulate() {
         digits: 2,
         time: 0.0,
     };
-
     let vol_mgr = FixedPercent {
         pct: 0.01,
         initial_balance: 10000.0,
@@ -412,26 +418,24 @@ fn test_simulator_simulate() {
         &vol_mgr,
         &exit_mgrs,
     );
-
     assert!(!result.trades.is_empty());
     let trade = &result.trades[0];
     assert_eq!(trade.direction, Direction::Buy);
-    // Entry is deferred to next bar's open (bars[1].open = 101.0), not the signal bar's close.
     assert_eq!(trade.entry_price, 101.0);
     assert_eq!(trade.entry_time, bars[1].time);
-    assert!(trade.exit_price >= 120.0); // TP hit
+    assert!(trade.exit_price >= 120.0);
     assert_eq!(trade.exit_reason, ExitReason::TakeProfit);
 }
 
 #[test]
 fn test_simulator_sell_and_stopped() {
     let mut strategy_params = HashMap::new();
-    strategy_params.insert("cross_only".to_string(), json!(true));
+    strategy_params.insert("stop_pct".to_string(), json!(0.02));
 
     let stop_manager_json = json!({
         "type": "fixed",
-        "fixed_sl_pts": 10.0,
-        "fixed_tp_pts": 20.0
+        "stop_distance": 10.0,
+        "start_rr": 0.0
     });
     let stop_config = serde_json::from_value(stop_manager_json).unwrap();
 
@@ -451,7 +455,6 @@ fn test_simulator_sell_and_stopped() {
         trading_hours: None,
     };
 
-    // Signal bar + entry bar + skip bar (entry_time + tf guard) + SL check bar.
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -486,7 +489,6 @@ fn test_simulator_sell_and_stopped() {
             volume: 1300.0,
         },
     ];
-
     let cols = IndicatorSet::default();
     let signals = vec![
         Some(Signal::new(Direction::Sell, 100.0, 110.0, 80.0)),
@@ -494,7 +496,6 @@ fn test_simulator_sell_and_stopped() {
         None,
         None,
     ];
-
     let symbol_info = SymbolInfo {
         symbol: "BTCUSDT".to_string(),
         spread: 0.0,
@@ -508,7 +509,6 @@ fn test_simulator_sell_and_stopped() {
         digits: 2,
         time: 0.0,
     };
-
     let vol_mgr = FixedPercent {
         pct: 0.01,
         initial_balance: 10000.0,
@@ -525,16 +525,11 @@ fn test_simulator_sell_and_stopped() {
         &vol_mgr,
         &exit_mgrs,
     );
-
     assert!(!result.trades.is_empty());
     let trade = &result.trades[0];
     assert_eq!(trade.direction, Direction::Sell);
-    // Entry deferred to bars[1].open = 100.0 (no slippage; spread = 0).
     assert_eq!(trade.entry_price, 100.0);
     assert_eq!(trade.entry_time, bars[1].time);
-    // bars[1] is the entry bar (skipped by entry_time + tf guard).
-    // bars[2] is also skipped (entry_time + tf == bars[2].time).
-    // bars[3].high = 112.0 >= SL 110.0 → stop out at 110.0.
     assert_eq!(trade.exit_price, 110.0);
     assert_eq!(trade.exit_reason, ExitReason::StopLoss);
 }
@@ -544,7 +539,6 @@ fn test_reports_writing() {
     let uuid = uuid::Uuid::new_v4().to_string();
     let temp_dir = std::env::temp_dir().join(format!("test_reports_{}", uuid));
     std::fs::create_dir_all(&temp_dir).unwrap();
-
     let csv_path = temp_dir.join("results.csv");
     let trades_csv_path = temp_dir.join("trades.csv");
 
@@ -552,17 +546,26 @@ fn test_reports_writing() {
         combo_hash: "hash123".to_string(),
         signal_hash: "sighash".to_string(),
         combo_kind: ComboKind::TypeA,
-        strategy_name: "rx8".to_string(),
+        strategy_name: "ema_cross".to_string(),
         symbol: "BTCUSDT".to_string(),
         timeframe: "15m".to_string(),
         stop_manager: "fixed".to_string(),
         config: vec![
-            ("strategy".to_string(), "rx8".to_string()),
+            ("strategy".to_string(), "ema_cross".to_string()),
             ("symbol".to_string(), "BTCUSDT".to_string()),
         ],
-        metrics: compute_metrics(&[], 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0),
+        metrics: compute_metrics(
+            &[],
+            0,
+            86400 * 365 * 5,
+            10000.0,
+            0.01,
+            0.0,
+            0.0,
+            &SwapConfig::none(),
+            0.0,
+        ),
     }];
-
     assert!(write_csv(&results, &csv_path).is_ok());
     assert!(csv_path.exists());
 
@@ -585,7 +588,6 @@ fn test_reports_writing() {
         currency_pnl: 100.0,
         group_id: 1,
     }];
-
     assert!(write_trades_csv(&trades, &trades_csv_path).is_ok());
     assert!(trades_csv_path.exists());
 
@@ -597,16 +599,13 @@ fn test_engine_run() {
     let uuid = uuid::Uuid::new_v4().to_string();
     let temp_dir = std::env::temp_dir().join(format!("test_engine_{}", uuid));
     std::fs::create_dir_all(&temp_dir).unwrap();
-
     let data_dir = temp_dir.clone();
 
-    // Save some bars to cache to bypass downloading
     let cache = data::OhlcvCache::new(&data_dir);
     let sym = "BTCUSDT";
     let tf = Timeframe::M15;
-
     let start_time = 1719000000;
-    let end_time = 1719003600; // 1 hour
+    let end_time = 1719003600;
     let mut bars = Vec::new();
     let mut curr_time = start_time;
     while curr_time <= end_time {
@@ -623,7 +622,7 @@ fn test_engine_run() {
     cache.save(sym, tf, &bars).unwrap();
 
     let config_json = json!({
-        "strategy": "rx8",
+        "strategy": "rsi_reversion",
         "symbol": "BTCUSDT",
         "timeframe": "15m",
         "stop_timeframe": "timeframe",
@@ -636,32 +635,27 @@ fn test_engine_run() {
         "commission_percent": 0.0003,
         "stop_manager": {
             "type": "fixed",
-            "fixed_sl_pts": 10.0,
-            "fixed_tp_pts": 20.0
+            "stop_distance": 10.0,
+            "start_rr": 0.0
         },
         "strategy_parameters": {
-            "model_type": "reversal",
-            "trade_direction": "both",
-            "rsi_upper_threshold": 70.0,
-            "rsi_lower_threshold": 30.0,
-            "cross_only": true
+            "oversold": 30.0,
+            "overbought": 70.0,
+            "stop_pct": 0.02,
+            "tp_pct": 0.04
         },
         "indicators": {
             "rsi": {
                 "type": "rsi",
-                "source": "close",
-                "timeperiod": 14
+                "period": 14
             }
         },
         "data_dir": data_dir,
         "output_dir": data_dir.join("results")
     });
-
     let config: BacktestConfig = serde_json::from_value(config_json).unwrap();
-
     let run_res = engine::run(&config, 10, None);
     println!("engine run result: {:?}", run_res);
-
     std::fs::remove_dir_all(&temp_dir).ok();
 }
 
@@ -670,13 +664,11 @@ fn test_engine_run_with_htf_indicators() {
     let uuid = uuid::Uuid::new_v4().to_string();
     let temp_dir = std::env::temp_dir().join(format!("test_engine_htf_{}", uuid));
     std::fs::create_dir_all(&temp_dir).unwrap();
-
     let data_dir = temp_dir.clone();
+
     let cache = data::OhlcvCache::new(&data_dir);
     let sym = "BTCUSDT";
     let tf = Timeframe::M30;
-
-    // Create 48 bars of 30m
     let start_time = 1719000000;
     let end_time = start_time + 48 * 30 * 60;
     let mut bars = Vec::new();
@@ -695,7 +687,7 @@ fn test_engine_run_with_htf_indicators() {
     cache.save(sym, tf, &bars).unwrap();
 
     let config_json = json!({
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "30m",
         "stop_timeframe": "timeframe",
@@ -708,38 +700,30 @@ fn test_engine_run_with_htf_indicators() {
         "commission_percent": 0.0003,
         "stop_manager": {
             "type": "fixed",
-            "fixed_sl_pts": 10.0,
-            "fixed_tp_pts": 20.0
+            "stop_distance": 10.0,
+            "start_rr": 0.0
         },
         "strategy_parameters": {
-            "model_type": "reversal",
-            "trade_direction": "both",
-            "rsi_upper_threshold": 70.0,
-            "rsi_lower_threshold": 30.0,
-            "cross_only": true
+            "stop_pct": 0.02,
+            "tp_pct": 0.04
         },
         "indicators": {
-            "rsi_ltf": {
-                "type": "rsi",
-                "source": "close",
-                "timeperiod": 14
+            "ema_fast": {
+                "type": "ema",
+                "period": 9
             },
-            "rsi_htf": {
-                "type": "rsi",
-                "source": "close",
-                "timeperiod": 14,
+            "ema_slow": {
+                "type": "ema",
+                "period": 21,
                 "timeframe": "1h"
             }
         },
         "data_dir": data_dir,
         "output_dir": data_dir.join("results")
     });
-
     let config: BacktestConfig = serde_json::from_value(config_json).unwrap();
-
     let run_res = engine::run(&config, 10, None);
     assert!(run_res.is_ok());
-
     std::fs::remove_dir_all(&temp_dir).ok();
 }
 
@@ -781,21 +765,20 @@ fn test_compute_metrics_sharpe_and_sortino() {
             ExitReason::TakeProfit,
         ),
     ];
-
-    let metrics = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
-
-    assert!(
-        metrics.sharpe_ratio > 0.0,
-        "Sharpe should be positive for net-positive trades"
+    let metrics = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
     );
-    assert!(metrics.sortino_ratio > 0.0, "Sortino should be positive");
-    // Sortino should be >= Sharpe when there's only one negative trade
-    assert!(
-        metrics.sortino_ratio >= metrics.sharpe_ratio,
-        "Sortino ({}) should be >= Sharpe ({}) with few losers",
-        metrics.sortino_ratio,
-        metrics.sharpe_ratio
-    );
+    assert!(metrics.sharpe_ratio > 0.0);
+    assert!(metrics.sortino_ratio > 0.0);
+    assert!(metrics.sortino_ratio >= metrics.sharpe_ratio);
 }
 
 #[test]
@@ -826,13 +809,22 @@ fn test_compute_metrics_all_winners() {
             ExitReason::TakeProfit,
         ),
     ];
-
-    let metrics = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
+    let metrics = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
     assert_eq!(metrics.win_rate, 1.0);
     assert_eq!(metrics.losing_trades, 0);
     assert_eq!(metrics.profit_factor, f64::INFINITY);
     assert_eq!(metrics.max_drawdown, 0.0);
-    assert_eq!(metrics.expectancy, 0.0); // expectancy is 0 if no losses
+    assert_eq!(metrics.expectancy, 0.0);
 }
 
 #[test]
@@ -855,14 +847,23 @@ fn test_compute_metrics_all_losers() {
             ExitReason::StopLoss,
         ),
     ];
-
-    let metrics = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
+    let metrics = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
     assert_eq!(metrics.win_rate, 0.0);
     assert_eq!(metrics.winning_trades, 0);
     assert!(metrics.net_profit < 0.0);
     assert!(metrics.max_drawdown > 0.0);
-    assert_eq!(metrics.recovery_factor, 0.0); // recovery = net_profit/max_dd, but net_profit < 0
-    assert_eq!(metrics.expectancy, 0.0); // no winners
+    assert_eq!(metrics.recovery_factor, 0.0);
+    assert_eq!(metrics.expectancy, 0.0);
 }
 
 #[test]
@@ -881,7 +882,7 @@ fn test_compute_metrics_avg_open_time() {
             volume: 1.0,
             open_risk: 0.0,
             entry_time: 1000,
-            exit_time: 1000 + 86400, // 1 day
+            exit_time: 1000 + 86400,
             exit_reason: ExitReason::EndOfData,
             profit: 0.0,
             currency_pnl: 0.0,
@@ -900,15 +901,24 @@ fn test_compute_metrics_avg_open_time() {
             volume: 1.0,
             open_risk: 0.0,
             entry_time: 2000,
-            exit_time: 2000 + (3 * 86400), // 3 days
+            exit_time: 2000 + (3 * 86400),
             exit_reason: ExitReason::EndOfData,
             profit: 0.0,
             currency_pnl: 0.0,
             group_id: 1,
         },
     ];
-    let m = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
-    // Average should be 2 days = 172800 seconds
+    let m = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
     assert!((m.avg_open_time_secs - 172800.0).abs() < 1.0);
 }
 
@@ -956,8 +966,17 @@ fn test_compute_metrics_streaks() {
             ExitReason::StopLoss,
         ),
     ];
-
-    let metrics = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
+    let metrics = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
     assert_eq!(metrics.longest_win_streak, 3);
     assert_eq!(metrics.longest_loss_streak, 2);
 }
@@ -972,14 +991,29 @@ fn test_compute_metrics_with_commission() {
         1.0,
         ExitReason::TakeProfit,
     )];
-
-    let no_comm = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
-    let with_comm = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.001, 0.0, &SwapConfig::none(), 0.0);
-
-    assert!(
-        with_comm.total_r < no_comm.total_r,
-        "Commission should reduce total_r"
+    let no_comm = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
     );
+    let with_comm = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.001,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
+    assert!(with_comm.total_r < no_comm.total_r);
     assert!(with_comm.net_profit < no_comm.net_profit);
 }
 
@@ -1011,10 +1045,19 @@ fn test_compute_metrics_long_short_sharpe() {
             ExitReason::TakeProfit,
         ),
     ];
-
-    let metrics = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
+    let metrics = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
     assert!(metrics.long_sharpe_ratio > 0.0);
-    assert!(metrics.short_sharpe_ratio == 0.0); // only 1 short trade -> len < 2
+    assert!(metrics.short_sharpe_ratio == 0.0);
 }
 
 #[test]
@@ -1053,8 +1096,17 @@ fn test_compute_metrics_enhanced_score() {
             ExitReason::TakeProfit,
         ),
     ];
-
-    let metrics = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
+    let metrics = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
     assert!(metrics.enhanced_score > 0.0);
     assert!(metrics.calmar_ratio >= 0.0);
     assert!(metrics.ulcer_index >= 0.0);
@@ -1097,9 +1149,18 @@ fn test_compute_metrics_median() {
             ExitReason::StopLoss,
         ),
     ];
-
-    let metrics = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
-    assert_eq!(metrics.median_win_r, 2.0); // median of [1, 2, 3]
+    let metrics = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
+    assert_eq!(metrics.median_win_r, 2.0);
     assert_eq!(metrics.median_loss_r, -1.0);
 }
 
@@ -1107,7 +1168,9 @@ fn test_compute_metrics_median() {
 
 #[test]
 fn test_simulator_no_signals() {
-    let stop_config = serde_json::from_value(json!({ "type": "fixed" })).unwrap();
+    let stop_config =
+        serde_json::from_value(json!({ "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 }))
+            .unwrap();
     let params = SimParams {
         symbol: "BTCUSDT",
         timeframe: Timeframe::M15,
@@ -1123,7 +1186,6 @@ fn test_simulator_no_signals() {
         collect_trades: true,
         trading_hours: None,
     };
-
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -1175,7 +1237,9 @@ fn test_simulator_no_signals() {
 
 #[test]
 fn test_simulator_end_of_data_close() {
-    let stop_config = serde_json::from_value(json!({ "type": "fixed" })).unwrap();
+    let stop_config =
+        serde_json::from_value(json!({ "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 }))
+            .unwrap();
     let strategy_params = HashMap::new();
     let params = SimParams {
         symbol: "BTCUSDT",
@@ -1192,8 +1256,6 @@ fn test_simulator_end_of_data_close() {
         collect_trades: true,
         trading_hours: None,
     };
-
-    // Signal at first bar, price doesn't hit SL or TP, forced close at end
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -1213,10 +1275,7 @@ fn test_simulator_end_of_data_close() {
         },
     ];
     let cols = IndicatorSet::default();
-    let signals = vec![
-        Some(Signal::new(Direction::Buy, 100.0, 95.0, 115.0)), // SL=95, TP=115 (neither hit)
-        None,
-    ];
+    let signals = vec![Some(Signal::new(Direction::Buy, 100.0, 95.0, 115.0)), None];
     let symbol_info = SymbolInfo {
         symbol: "BTCUSDT".to_string(),
         point: 1.0,
@@ -1251,7 +1310,7 @@ fn test_simulator_end_of_data_close() {
 #[test]
 fn test_count_combos_single() {
     let config_json = json!({
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "15m",
         "stop_timeframe": "timeframe",
@@ -1261,9 +1320,12 @@ fn test_count_combos_single() {
         "data_provider": "binance",
         "initial_balance": 100000.0,
         "risk_percentage": 0.001,
-        "stop_manager": { "type": "fixed" },
+        "stop_manager": { "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 },
         "strategy_parameters": {},
-        "indicators": {}
+        "indicators": {
+            "ema_fast": { "type": "ema", "period": 9 },
+            "ema_slow": { "type": "ema", "period": 21 }
+        }
     });
     let config: BacktestConfig = serde_json::from_value(config_json).unwrap();
     assert_eq!(count_combos(&config).unwrap(), 1);
@@ -1274,7 +1336,7 @@ fn test_count_combos_single() {
 #[test]
 fn test_backtest_config_commission_defaults() {
     let config_json = json!({
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "15m",
         "stop_timeframe": "timeframe",
@@ -1284,7 +1346,7 @@ fn test_backtest_config_commission_defaults() {
         "data_provider": "binance",
         "initial_balance": 50000.0,
         "risk_percentage": 0.01,
-        "stop_manager": { "type": "fixed" },
+        "stop_manager": { "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 },
         "strategy_parameters": {},
         "indicators": {}
     });
@@ -1296,7 +1358,7 @@ fn test_backtest_config_commission_defaults() {
 #[test]
 fn test_backtest_config_with_explicit_commission() {
     let config_json = json!({
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "15m",
         "stop_timeframe": "timeframe",
@@ -1308,7 +1370,7 @@ fn test_backtest_config_with_explicit_commission() {
         "risk_percentage": 0.01,
         "commission_percent": 0.001,
         "commission_per_lot": 2.5,
-        "stop_manager": { "type": "fixed" },
+        "stop_manager": { "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 },
         "strategy_parameters": {},
         "indicators": {}
     });
@@ -1321,7 +1383,9 @@ fn test_backtest_config_with_explicit_commission() {
 
 #[test]
 fn test_simulator_next_bar_open_entry_price() {
-    let stop_config = serde_json::from_value(json!({ "type": "fixed" })).unwrap();
+    let stop_config =
+        serde_json::from_value(json!({ "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 }))
+            .unwrap();
     let params = SimParams {
         symbol: "BTCUSDT",
         timeframe: Timeframe::M15,
@@ -1337,8 +1401,6 @@ fn test_simulator_next_bar_open_entry_price() {
         collect_trades: true,
         trading_hours: None,
     };
-
-    // Bar[0] produces a Buy signal. Bar[1].open = 105.0 → entry price.
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -1373,7 +1435,6 @@ fn test_simulator_next_bar_open_entry_price() {
             volume: 1300.0,
         },
     ];
-
     let cols = IndicatorSet::default();
     let signals = vec![
         Some(Signal::new(Direction::Buy, 102.0, 90.0, 125.0)),
@@ -1406,10 +1467,8 @@ fn test_simulator_next_bar_open_entry_price() {
         &vol_mgr,
         &exit_mgrs,
     );
-
     assert!(!result.trades.is_empty());
     let trade = &result.trades[0];
-    // Must enter at next bar open, not signal bar close.
     assert_eq!(trade.entry_price, 105.0, "entry must be bar[1].open");
     assert_eq!(trade.entry_time, bars[1].time);
     assert_eq!(trade.direction, Direction::Buy);
@@ -1417,7 +1476,9 @@ fn test_simulator_next_bar_open_entry_price() {
 
 #[test]
 fn test_simulator_gap_past_sl_skipped() {
-    let stop_config = serde_json::from_value(json!({ "type": "fixed" })).unwrap();
+    let stop_config =
+        serde_json::from_value(json!({ "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 }))
+            .unwrap();
     let params = SimParams {
         symbol: "BTCUSDT",
         timeframe: Timeframe::M15,
@@ -1433,9 +1494,6 @@ fn test_simulator_gap_past_sl_skipped() {
         collect_trades: true,
         trading_hours: None,
     };
-
-    // Bar[0]: Buy signal with SL at 90. Bar[1] gaps down to open at 85 — below SL.
-    // The pending entry must be discarded; no trade should open.
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -1464,7 +1522,7 @@ fn test_simulator_gap_past_sl_skipped() {
     ];
     let cols = IndicatorSet::default();
     let signals = vec![
-        Some(Signal::new(Direction::Buy, 102.0, 90.0, 120.0)), // SL = 90
+        Some(Signal::new(Direction::Buy, 102.0, 90.0, 120.0)),
         None,
         None,
     ];
@@ -1498,7 +1556,9 @@ fn test_simulator_gap_past_sl_skipped() {
 
 #[test]
 fn test_simulator_last_bar_signal_not_entered() {
-    let stop_config = serde_json::from_value(json!({ "type": "fixed" })).unwrap();
+    let stop_config =
+        serde_json::from_value(json!({ "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 }))
+            .unwrap();
     let params = SimParams {
         symbol: "BTCUSDT",
         timeframe: Timeframe::M15,
@@ -1514,8 +1574,6 @@ fn test_simulator_last_bar_signal_not_entered() {
         collect_trades: true,
         trading_hours: None,
     };
-
-    // Signal on the last bar — no next bar exists to execute it.
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -1561,7 +1619,6 @@ fn test_simulator_last_bar_signal_not_entered() {
         &vol_mgr,
         &exit_mgrs,
     );
-    // Signal on last bar has no next bar → pending entry is discarded.
     assert!(
         result.trades.is_empty(),
         "signal on last bar must not produce a trade"
@@ -1572,8 +1629,9 @@ fn test_simulator_last_bar_signal_not_entered() {
 
 #[test]
 fn test_simulator_buy_sl_hit() {
-    // Verify a buy position is closed at SL when bar.low crosses below the stop.
-    let stop_config = serde_json::from_value(json!({ "type": "fixed" })).unwrap();
+    let stop_config =
+        serde_json::from_value(json!({ "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 }))
+            .unwrap();
     let params = SimParams {
         symbol: "BTCUSDT",
         timeframe: Timeframe::M15,
@@ -1589,8 +1647,6 @@ fn test_simulator_buy_sl_hit() {
         collect_trades: true,
         trading_hours: None,
     };
-
-    // Signal bar | entry bar | skip bar (guard) | SL bar (low=87 < SL=90)
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -1657,19 +1713,19 @@ fn test_simulator_buy_sl_hit() {
         &vol_mgr,
         &exit_mgrs,
     );
-
     assert!(!result.trades.is_empty());
     let trade = &result.trades[0];
     assert_eq!(trade.direction, Direction::Buy);
-    assert_eq!(trade.entry_price, 100.0); // entered at bars[1].open
-    assert_eq!(trade.exit_price, 90.0); // stopped at SL=90
+    assert_eq!(trade.entry_price, 100.0);
+    assert_eq!(trade.exit_price, 90.0);
     assert_eq!(trade.exit_reason, ExitReason::StopLoss);
 }
 
 #[test]
 fn test_simulator_sell_tp_hit() {
-    // Verify a sell position is closed at TP when bar.low crosses below the take-profit.
-    let stop_config = serde_json::from_value(json!({ "type": "fixed" })).unwrap();
+    let stop_config =
+        serde_json::from_value(json!({ "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 }))
+            .unwrap();
     let params = SimParams {
         symbol: "BTCUSDT",
         timeframe: Timeframe::M15,
@@ -1685,8 +1741,6 @@ fn test_simulator_sell_tp_hit() {
         collect_trades: true,
         trading_hours: None,
     };
-
-    // Signal bar | entry bar | skip bar | TP bar (low=78 <= TP=80)
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -1753,19 +1807,19 @@ fn test_simulator_sell_tp_hit() {
         &vol_mgr,
         &exit_mgrs,
     );
-
     assert!(!result.trades.is_empty());
     let trade = &result.trades[0];
     assert_eq!(trade.direction, Direction::Sell);
-    assert_eq!(trade.entry_price, 100.0); // entered at bars[1].open
-    assert_eq!(trade.exit_price, 80.0); // TP hit
+    assert_eq!(trade.entry_price, 100.0);
+    assert_eq!(trade.exit_price, 80.0);
     assert_eq!(trade.exit_reason, ExitReason::TakeProfit);
 }
 
 #[test]
 fn test_simulator_gap_past_sl_sell() {
-    // Sell signal with SL=110; next bar opens at 115 (above SL) → gap, entry discarded.
-    let stop_config = serde_json::from_value(json!({ "type": "fixed" })).unwrap();
+    let stop_config =
+        serde_json::from_value(json!({ "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 }))
+            .unwrap();
     let params = SimParams {
         symbol: "BTCUSDT",
         timeframe: Timeframe::M15,
@@ -1781,7 +1835,6 @@ fn test_simulator_gap_past_sl_sell() {
         collect_trades: true,
         trading_hours: None,
     };
-
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -1810,7 +1863,7 @@ fn test_simulator_gap_past_sl_sell() {
     ];
     let cols = IndicatorSet::default();
     let signals = vec![
-        Some(Signal::new(Direction::Sell, 100.0, 110.0, 80.0)), // SL=110
+        Some(Signal::new(Direction::Sell, 100.0, 110.0, 80.0)),
         None,
         None,
     ];
@@ -1847,8 +1900,9 @@ fn test_simulator_gap_past_sl_sell() {
 
 #[test]
 fn test_simulator_pyramiding_accumulates_positions() {
-    // With pyramiding=true, two buy signals produce two open positions closed end-of-data.
-    let stop_config = serde_json::from_value(json!({ "type": "fixed" })).unwrap();
+    let stop_config =
+        serde_json::from_value(json!({ "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 }))
+            .unwrap();
     let params = SimParams {
         symbol: "BTCUSDT",
         timeframe: Timeframe::M15,
@@ -1864,126 +1918,6 @@ fn test_simulator_pyramiding_accumulates_positions() {
         collect_trades: true,
         trading_hours: None,
     };
-
-    // bars[0]: signal 1 → bars[1]: entry 1 → bars[2]: signal 2 (skip guard for pos1)
-    // → bars[3]: entry 2 → bars[4]+: pos1 checked → bars[5]: pos2 checked → end-of-data closes both
-    let bars = vec![
-        Bar {
-            time: 1719000000,
-            open: 100.0,
-            high: 103.0,
-            low: 99.0,
-            close: 100.0,
-            volume: 1000.0,
-        },
-        Bar {
-            time: 1719000900,
-            open: 100.0,
-            high: 101.0,
-            low: 99.0,
-            close: 100.0,
-            volume: 1000.0,
-        },
-        Bar {
-            time: 1719001800,
-            open: 100.0,
-            high: 101.0,
-            low: 99.0,
-            close: 100.0,
-            volume: 1000.0,
-        },
-        Bar {
-            time: 1719002700,
-            open: 100.0,
-            high: 101.0,
-            low: 99.0,
-            close: 100.0,
-            volume: 1000.0,
-        },
-        Bar {
-            time: 1719003600,
-            open: 100.0,
-            high: 101.0,
-            low: 99.0,
-            close: 100.0,
-            volume: 1000.0,
-        },
-        Bar {
-            time: 1719004500,
-            open: 100.0,
-            high: 101.0,
-            low: 99.0,
-            close: 100.0,
-            volume: 1000.0,
-        },
-    ];
-    let cols = IndicatorSet::default();
-    let signals = vec![
-        Some(Signal::new(Direction::Buy, 100.0, 85.0, 200.0)), // signal 1
-        None,
-        Some(Signal::new(Direction::Buy, 100.0, 85.0, 200.0)), // signal 2 (queued at bars[2])
-        None,
-        None,
-        None,
-    ];
-    let symbol_info = SymbolInfo {
-        symbol: "BTCUSDT".to_string(),
-        point: 1.0,
-        tick_value: 1.0,
-        min_lot: 0.1,
-        max_lot: 100.0,
-        lot_step: 0.1,
-        ..Default::default()
-    };
-    let vol_mgr = FixedPercent {
-        pct: 0.01,
-        initial_balance: 10000.0,
-    };
-    let exit_mgrs: Vec<Box<dyn ExitManager>> = vec![];
-
-    let result = simulate(
-        &params,
-        &bars,
-        &bars,
-        &cols,
-        &signals,
-        &symbol_info,
-        &vol_mgr,
-        &exit_mgrs,
-    );
-
-    assert_eq!(
-        result.trades.len(),
-        2,
-        "pyramiding must allow two buy positions"
-    );
-    assert!(result.trades.iter().all(|t| t.direction == Direction::Buy));
-    assert!(result
-        .trades
-        .iter()
-        .all(|t| t.exit_reason == ExitReason::EndOfData));
-}
-
-#[test]
-fn test_simulator_no_pyramiding_blocks_second_buy() {
-    // With pyramiding=false, a second buy signal while a buy is open must be skipped.
-    let stop_config = serde_json::from_value(json!({ "type": "fixed" })).unwrap();
-    let params = SimParams {
-        symbol: "BTCUSDT",
-        timeframe: Timeframe::M15,
-        stop_timeframe: Timeframe::M15,
-        pyramiding: false,
-        initial_balance: 10000.0,
-        risk_pct: 0.01,
-        commission_pct: 0.0,
-        commission_per_lot: 0.0,
-        swap: SwapConfig::none(),
-        stop_manager: &stop_config,
-        strategy_params: &HashMap::new(),
-        collect_trades: true,
-        trading_hours: None,
-    };
-
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -2038,7 +1972,123 @@ fn test_simulator_no_pyramiding_blocks_second_buy() {
     let signals = vec![
         Some(Signal::new(Direction::Buy, 100.0, 85.0, 200.0)),
         None,
-        Some(Signal::new(Direction::Buy, 100.0, 85.0, 200.0)), // should be blocked
+        Some(Signal::new(Direction::Buy, 100.0, 85.0, 200.0)),
+        None,
+        None,
+        None,
+    ];
+    let symbol_info = SymbolInfo {
+        symbol: "BTCUSDT".to_string(),
+        point: 1.0,
+        tick_value: 1.0,
+        min_lot: 0.1,
+        max_lot: 100.0,
+        lot_step: 0.1,
+        ..Default::default()
+    };
+    let vol_mgr = FixedPercent {
+        pct: 0.01,
+        initial_balance: 10000.0,
+    };
+    let exit_mgrs: Vec<Box<dyn ExitManager>> = vec![];
+
+    let result = simulate(
+        &params,
+        &bars,
+        &bars,
+        &cols,
+        &signals,
+        &symbol_info,
+        &vol_mgr,
+        &exit_mgrs,
+    );
+    assert_eq!(
+        result.trades.len(),
+        2,
+        "pyramiding must allow two buy positions"
+    );
+    assert!(result.trades.iter().all(|t| t.direction == Direction::Buy));
+    assert!(result
+        .trades
+        .iter()
+        .all(|t| t.exit_reason == ExitReason::EndOfData));
+}
+
+#[test]
+fn test_simulator_no_pyramiding_blocks_second_buy() {
+    let stop_config =
+        serde_json::from_value(json!({ "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 }))
+            .unwrap();
+    let params = SimParams {
+        symbol: "BTCUSDT",
+        timeframe: Timeframe::M15,
+        stop_timeframe: Timeframe::M15,
+        pyramiding: false,
+        initial_balance: 10000.0,
+        risk_pct: 0.01,
+        commission_pct: 0.0,
+        commission_per_lot: 0.0,
+        swap: SwapConfig::none(),
+        stop_manager: &stop_config,
+        strategy_params: &HashMap::new(),
+        collect_trades: true,
+        trading_hours: None,
+    };
+    let bars = vec![
+        Bar {
+            time: 1719000000,
+            open: 100.0,
+            high: 103.0,
+            low: 99.0,
+            close: 100.0,
+            volume: 1000.0,
+        },
+        Bar {
+            time: 1719000900,
+            open: 100.0,
+            high: 101.0,
+            low: 99.0,
+            close: 100.0,
+            volume: 1000.0,
+        },
+        Bar {
+            time: 1719001800,
+            open: 100.0,
+            high: 101.0,
+            low: 99.0,
+            close: 100.0,
+            volume: 1000.0,
+        },
+        Bar {
+            time: 1719002700,
+            open: 100.0,
+            high: 101.0,
+            low: 99.0,
+            close: 100.0,
+            volume: 1000.0,
+        },
+        Bar {
+            time: 1719003600,
+            open: 100.0,
+            high: 101.0,
+            low: 99.0,
+            close: 100.0,
+            volume: 1000.0,
+        },
+        Bar {
+            time: 1719004500,
+            open: 100.0,
+            high: 101.0,
+            low: 99.0,
+            close: 100.0,
+            volume: 1000.0,
+        },
+    ];
+    let cols = IndicatorSet::default();
+    let signals = vec![
+        Some(Signal::new(Direction::Buy, 100.0, 85.0, 200.0)),
+        None,
+        Some(Signal::new(Direction::Buy, 100.0, 85.0, 200.0)),
         None,
         None,
         None,
@@ -2077,7 +2127,6 @@ fn test_simulator_no_pyramiding_blocks_second_buy() {
 
 #[test]
 fn test_compute_metrics_commission_per_lot_reduces_r() {
-    // A commission_per_lot > 0 should reduce net R compared to zero commission.
     let trades = vec![make_trade(
         Direction::Buy,
         10000.0,
@@ -2086,23 +2135,45 @@ fn test_compute_metrics_commission_per_lot_reduces_r() {
         2.0,
         ExitReason::TakeProfit,
     )];
-
-    let no_comm = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
-    let with_comm = compute_metrics(&trades, 0, 86400 * 365 * 5, 10000.0, 0.01, 0.0, 5.0, &SwapConfig::none(), 0.0);
-
-    assert!(
-        with_comm.total_r < no_comm.total_r,
-        "commission_per_lot must reduce net R: {} < {}",
-        with_comm.total_r,
-        no_comm.total_r
+    let no_comm = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
     );
+    let with_comm = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10000.0,
+        0.01,
+        0.0,
+        5.0,
+        &SwapConfig::none(),
+        0.0,
+    );
+    assert!(with_comm.total_r < no_comm.total_r);
     assert!(with_comm.net_profit < no_comm.net_profit);
 }
 
 #[test]
 fn test_compute_metrics_zero_trades_final_balance_unchanged() {
-    // Empty trade list must leave final_balance equal to initial_balance.
-    let m = compute_metrics(&[], 0, 86400 * 365 * 5, 50000.0, 0.01, 0.001, 0.0, &SwapConfig::none(), 0.0);
+    let m = compute_metrics(
+        &[],
+        0,
+        86400 * 365 * 5,
+        50000.0,
+        0.01,
+        0.001,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
     assert_eq!(m.final_balance, 50000.0);
     assert_eq!(m.total_trades, 0);
     assert_eq!(m.win_rate, 0.0);
@@ -2112,8 +2183,9 @@ fn test_compute_metrics_zero_trades_final_balance_unchanged() {
 
 #[test]
 fn test_simulator_collect_trades_false_returns_empty_vec() {
-    // When collect_trades=false the returned trades vec must be empty even if positions closed.
-    let stop_config = serde_json::from_value(json!({ "type": "fixed" })).unwrap();
+    let stop_config =
+        serde_json::from_value(json!({ "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0 }))
+            .unwrap();
     let params = SimParams {
         symbol: "BTCUSDT",
         timeframe: Timeframe::M15,
@@ -2127,9 +2199,8 @@ fn test_simulator_collect_trades_false_returns_empty_vec() {
         stop_manager: &stop_config,
         strategy_params: &HashMap::new(),
         collect_trades: false,
-        trading_hours: None, // ← key setting
+        trading_hours: None,
     };
-
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -2175,7 +2246,6 @@ fn test_simulator_collect_trades_false_returns_empty_vec() {
         &vol_mgr,
         &exit_mgrs,
     );
-    // Metrics still computed (trades still occurred internally), but vec is empty.
     assert!(
         result.trades.is_empty(),
         "collect_trades=false must produce empty trades vec"
@@ -2216,9 +2286,7 @@ fn make_trade(
 #[test]
 fn test_simulator_stop_timeframe_sub_bars() {
     let stop_config = serde_json::from_value(json!({
-        "type": "fixed",
-        "fixed_sl_pts": 10.0,
-        "fixed_tp_pts": 100.0,
+        "type": "fixed", "stop_distance": 10.0, "start_rr": 0.0
     }))
     .unwrap();
     let params = SimParams {
@@ -2236,9 +2304,6 @@ fn test_simulator_stop_timeframe_sub_bars() {
         collect_trades: true,
         trading_hours: None,
     };
-
-    // Main bars (30m)
-    // Buy signal on bars[0]. Entry is executed at bars[1].open = 101.0. SL = 91.
     let bars = vec![
         Bar {
             time: 1719000000,
@@ -2247,7 +2312,7 @@ fn test_simulator_stop_timeframe_sub_bars() {
             low: 98.0,
             close: 101.0,
             volume: 1000.0,
-        }, // 10:00
+        },
         Bar {
             time: 1719001800,
             open: 101.0,
@@ -2255,11 +2320,8 @@ fn test_simulator_stop_timeframe_sub_bars() {
             low: 98.0,
             close: 101.0,
             volume: 1100.0,
-        }, // 10:30
+        },
     ];
-
-    // Sub-bars on 15m stop_timeframe.
-    // The second 15m bar (10:45) goes down to low 85.0, which hits the SL of 91.0!
     let stop_bars = vec![
         Bar {
             time: 1719000000,
@@ -2268,7 +2330,7 @@ fn test_simulator_stop_timeframe_sub_bars() {
             low: 98.0,
             close: 101.0,
             volume: 1000.0,
-        }, // 10:00
+        },
         Bar {
             time: 1719000900,
             open: 101.0,
@@ -2276,7 +2338,7 @@ fn test_simulator_stop_timeframe_sub_bars() {
             low: 98.0,
             close: 101.0,
             volume: 500.0,
-        }, // 10:15
+        },
         Bar {
             time: 1719001800,
             open: 101.0,
@@ -2284,7 +2346,7 @@ fn test_simulator_stop_timeframe_sub_bars() {
             low: 98.0,
             close: 101.0,
             volume: 600.0,
-        }, // 10:30
+        },
         Bar {
             time: 1719002700,
             open: 101.0,
@@ -2292,9 +2354,8 @@ fn test_simulator_stop_timeframe_sub_bars() {
             low: 85.0,
             close: 100.0,
             volume: 500.0,
-        }, // 10:45 -> Hits SL!
+        },
     ];
-
     let cols = IndicatorSet::default();
     let signals = vec![Some(Signal::new(Direction::Buy, 101.0, 91.0, 200.0)), None];
     let symbol_info = SymbolInfo {
@@ -2322,13 +2383,12 @@ fn test_simulator_stop_timeframe_sub_bars() {
         &vol_mgr,
         &exit_mgrs,
     );
-
     assert!(!result.trades.is_empty());
     let trade = &result.trades[0];
     assert_eq!(trade.direction, Direction::Buy);
-    assert_eq!(trade.entry_price, 101.0); // entered at bars[1].open
-    assert_eq!(trade.exit_price, 91.0); // stopped at SL=91
-    assert_eq!(trade.exit_time, 1719002700); // 10:45 stop bar time
+    assert_eq!(trade.entry_price, 101.0);
+    assert_eq!(trade.exit_price, 91.0);
+    assert_eq!(trade.exit_time, 1719002700);
     assert_eq!(trade.exit_reason, ExitReason::StopLoss);
 }
 
@@ -2336,19 +2396,10 @@ fn test_simulator_stop_timeframe_sub_bars() {
 fn test_canonical_value() {
     use backtest::canonical_value;
     use serde_json::json;
-
-    // Numbers (integers get 8 decimals too since they are parsed as f64)
     assert_eq!(canonical_value(&json!(123)), "123.00000000");
     assert_eq!(canonical_value(&json!(1.5)), "1.50000000");
-
-    // Arrays
     assert_eq!(canonical_value(&json!([1.5, 2])), "[1.50000000,2.00000000]");
-
-    // Objects (keys sorted)
-    let obj = json!({
-        "z": 1,
-        "a": 1.5
-    });
+    let obj = json!({ "z": 1, "a": 1.5 });
     assert_eq!(canonical_value(&obj), "{a:1.50000000,z:1.00000000}");
 }
 
@@ -2356,57 +2407,34 @@ fn test_canonical_value() {
 fn test_expand_sample_values() {
     use backtest::expand_sample_values;
     use serde_json::json;
-
-    // Test range
-    let range_obj = json!({
-        "$sample": "range",
-        "start": 1.0,
-        "stop": 3.0,
-        "step": 0.5
-    })
-    .as_object()
-    .unwrap()
-    .clone();
+    let range_obj = json!({ "$sample": "range", "start": 1.0, "stop": 3.0, "step": 0.5 })
+        .as_object()
+        .unwrap()
+        .clone();
     let res = expand_sample_values(&range_obj).unwrap();
     assert_eq!(res, vec![json!(1.0), json!(1.5), json!(2.0), json!(2.5)]);
 
-    // Test linspace
-    let linspace_obj = json!({
-        "$sample": "linspace",
-        "start": 1.0,
-        "stop": 2.0,
-        "n": 3
-    })
-    .as_object()
-    .unwrap()
-    .clone();
+    let linspace_obj = json!({ "$sample": "linspace", "start": 1.0, "stop": 2.0, "n": 3 })
+        .as_object()
+        .unwrap()
+        .clone();
     let res = expand_sample_values(&linspace_obj).unwrap();
     assert_eq!(res, vec![json!(1.0), json!(1.5), json!(2.0)]);
 
-    // Test log
-    let log_obj = json!({
-        "$sample": "log",
-        "start": 1.0,
-        "stop": 100.0,
-        "n": 3
-    })
-    .as_object()
-    .unwrap()
-    .clone();
+    let log_obj = json!({ "$sample": "log", "start": 1.0, "stop": 100.0, "n": 3 })
+        .as_object()
+        .unwrap()
+        .clone();
     let res = expand_sample_values(&log_obj).unwrap();
     assert_eq!(res.len(), 3);
     assert!((res[0].as_f64().unwrap() - 1.0).abs() < 1e-5);
     assert!((res[1].as_f64().unwrap() - 10.0).abs() < 1e-5);
     assert!((res[2].as_f64().unwrap() - 100.0).abs() < 1e-5);
 
-    // Test values
-    let values_obj = json!({
-        "$sample": "values",
-        "items": ["a", 1.5]
-    })
-    .as_object()
-    .unwrap()
-    .clone();
+    let values_obj = json!({ "$sample": "values", "items": ["a", 1.5] })
+        .as_object()
+        .unwrap()
+        .clone();
     let res = expand_sample_values(&values_obj).unwrap();
     assert_eq!(res, vec![json!("a"), json!(1.5)]);
 }
@@ -2425,15 +2453,24 @@ fn test_compute_metrics_swap_per_lot_reduces_net_profit_for_long() {
         take_profit: 1.1100,
         volume: 1.0,
         open_risk: 0.0050,
-        entry_time: 1_780_300_800, // held 3 nights
+        entry_time: 1_780_300_800,
         exit_time: 1_780_300_800 + 3 * 86_400,
         exit_reason: ExitReason::TakeProfit,
         profit: 1.0,
         currency_pnl: 0.0050,
         group_id: 1,
     }];
-
-    let no_swap = compute_metrics(&trades, 0, 86400 * 365 * 5, 10_000.0, 0.01, 0.0, 0.0, &SwapConfig::none(), 0.0);
+    let no_swap = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10_000.0,
+        0.01,
+        0.0,
+        0.0,
+        &SwapConfig::none(),
+        0.0,
+    );
     let with_swap = compute_metrics(
         &trades,
         0,
@@ -2448,7 +2485,6 @@ fn test_compute_metrics_swap_per_lot_reduces_net_profit_for_long() {
         },
         0.0,
     );
-
     assert!(with_swap.net_profit < no_swap.net_profit);
     assert!(with_swap.total_swap_cost < 0.0);
 }
@@ -2474,11 +2510,20 @@ fn test_compute_metrics_swap_credit_increases_net_profit_for_short() {
         currency_pnl: 0.0050,
         group_id: 1,
     }];
-
     let swap = SwapConfig {
-        short_per_lot: 1.2, // positive = credit for shorts on this pair
+        short_per_lot: 1.2,
         ..Default::default()
     };
-    let with_swap = compute_metrics(&trades, 0, 86400 * 365 * 5, 10_000.0, 0.01, 0.0, 0.0, &swap, 0.0);
+    let with_swap = compute_metrics(
+        &trades,
+        0,
+        86400 * 365 * 5,
+        10_000.0,
+        0.01,
+        0.0,
+        0.0,
+        &swap,
+        0.0,
+    );
     assert!(with_swap.total_swap_cost > 0.0);
 }

@@ -179,8 +179,10 @@ fn walk_and_plateau(
                                 expanded[window_start..=window_end].to_vec();
                             *combos *= plateau_vals.len();
 
-                            if let Some(values_f64) =
-                                plateau_vals.iter().map(|v| v.as_f64()).collect::<Option<Vec<_>>>()
+                            if let Some(values_f64) = plateau_vals
+                                .iter()
+                                .map(|v| v.as_f64())
+                                .collect::<Option<Vec<_>>>()
                             {
                                 if values_f64.len() > 1 {
                                     dims.push(PlateauDimension {
@@ -263,7 +265,7 @@ mod tests {
     #[test]
     fn test_config_from_consensus() {
         let tpl: DiscoveryTemplate = serde_json::from_value(json!({
-            "strategy": "taycan4s",
+            "strategy": "ema_cross",
             "stop_manager": [{"type": "fixed", "stop_distance": 2.0}],
             "indicators": {},
             "strategy_parameters": {}
@@ -297,7 +299,7 @@ mod tests {
     #[test]
     fn test_build_plateau_config_widens_window_and_captures_dimension() {
         let tpl: DiscoveryTemplate = serde_json::from_value(json!({
-            "strategy": "taycan4s",
+            "strategy": "ema_cross",
             "stop_manager": [{
                 "type": "fixed",
                 "stop_distance": {"$sample": "range", "start": 1.0, "stop": 6.0, "step": 1.0},
@@ -324,9 +326,16 @@ mod tests {
             "indicators": {}
         });
 
-        let (cfg, dims) =
-            build_plateau_config(&tpl, &sym, "15m", &[], &consensus, "2020-01-01", "2025-01-01")
-                .unwrap();
+        let (cfg, dims) = build_plateau_config(
+            &tpl,
+            &sym,
+            "15m",
+            &[],
+            &consensus,
+            "2020-01-01",
+            "2025-01-01",
+        )
+        .unwrap();
 
         let items = cfg["stop_manager"][0]["stop_distance"]["items"]
             .as_array()

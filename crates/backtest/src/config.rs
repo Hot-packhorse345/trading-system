@@ -1,12 +1,12 @@
-use anyhow::{anyhow, Result, Context};
-use chrono::{Duration, Utc, DateTime, Datelike, Timelike};
+use crate::swap::SwapConfig;
+use anyhow::{anyhow, Context, Result};
+use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use risk::config::{ExitManagerConfig, StopManagerConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use ts_core::{parse_iso_date, parse_iso_date_end, parse_timeframe, Timeframe};
-use crate::swap::SwapConfig;
 
 // ── BacktestConfig ─────────────────────────────────────────────
 
@@ -293,17 +293,25 @@ pub fn parse_trading_session(s: &str) -> Result<TradingHoursConfig> {
     let mut schedule = HashMap::new();
     let s = s.trim();
     if s.is_empty() {
-        return Ok(TradingHoursConfig { enabled: false, schedule });
+        return Ok(TradingHoursConfig {
+            enabled: false,
+            schedule,
+        });
     }
 
     let rules: Vec<&str> = s.split(',').collect();
     for rule in rules {
         let rule = rule.trim();
-        if rule.is_empty() { continue; }
+        if rule.is_empty() {
+            continue;
+        }
 
         let parts: Vec<&str> = rule.split(':').collect();
         if parts.len() != 2 {
-            anyhow::bail!("invalid trading_session rule: '{}'. Expected 'days:HHMM-HHMM'", rule);
+            anyhow::bail!(
+                "invalid trading_session rule: '{}'. Expected 'days:HHMM-HHMM'",
+                rule
+            );
         }
         let days_str = parts[0].trim();
         let time_str = parts[1].trim();

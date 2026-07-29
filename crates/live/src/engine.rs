@@ -147,8 +147,10 @@ impl LiveEngine {
                         &symbol_upper,
                         &w_config.timeframe,
                     );
-                    let worker_id =
-                        format!("{}:{}:{}", w_config.strategy, symbol_upper, w_config.timeframe);
+                    let worker_id = format!(
+                        "{}:{}:{}",
+                        w_config.strategy, symbol_upper, w_config.timeframe
+                    );
                     let db_for_decay = trade_db.clone();
                     let notifier_for_decay = notifier.clone();
                     let decay_shtdn_rx = shutdown_tx.subscribe();
@@ -246,4 +248,3 @@ fn extract_daily_dd_limit(config: &LiveWorkerConfig) -> f64 {
         .and_then(|v| v.as_f64())
         .unwrap_or(5.0)
 }
-

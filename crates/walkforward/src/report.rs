@@ -167,8 +167,8 @@ impl WfReport {
         println!("OOS stability ratio: {:.4}", self.oos_stability);
         println!("{}", "-".repeat(72));
         println!(
-            "{:>6}  {:>12}  {:>12}  {:>12}  {:>8}  {}",
-            "window", "IS", "OOS", "OOS_total_R", "trades", "parameters"
+            "{:>6}  {:>12}  {:>12}  {:>12}  {:>8}  parameters",
+            "window", "IS", "OOS", "OOS_total_R", "trades"
         );
         for r in &self.rounds {
             println!(

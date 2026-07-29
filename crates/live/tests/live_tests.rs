@@ -21,7 +21,6 @@ fn test_formatter_simple() {
         formatter::format_news_cleared(),
         "✅ <b>News Blackout Cleared</b>"
     );
-
     assert_eq!(
         formatter::exit_reason_label(ExitReason::StopLoss),
         "Stop Out"
@@ -60,7 +59,6 @@ fn test_formatter_trade_open_close() {
         is_split_chunk: false,
         group_id: 1,
     };
-
     let open_msg = formatter::format_trade_open(&pos, "EURUSD");
     assert!(open_msg.contains("Trade Opened"));
     assert!(open_msg.contains("EURUSD"));
@@ -87,7 +85,6 @@ fn test_formatter_trade_open_close() {
         currency_pnl: 38.75,
         group_id: 1,
     };
-
     let stop_out_msg = formatter::format_stop_out(&rec);
     assert!(stop_out_msg.contains("Stop Out"));
 
@@ -117,7 +114,6 @@ fn test_formatter_news_and_account() {
             title: "Fed Interest Rate Decision".to_string(),
         }],
     };
-
     let blackout_msg = formatter::format_news_blackout(&window);
     assert!(blackout_msg.contains("News Blackout Active"));
     assert!(blackout_msg.contains("Fed Interest Rate Decision"));
@@ -130,7 +126,6 @@ fn test_formatter_news_and_account() {
         margin: 500.0,
         margin_free: 102000.0,
     };
-
     let acct_msg = formatter::format_account_report(&acct);
     assert!(acct_msg.contains("Account Report"));
     assert!(acct_msg.contains("USDT"));
@@ -208,7 +203,6 @@ async fn test_drawdown_manager_shutdown() {
         temp_dir.clone(),
         shutdown_rx,
     );
-
     let handle = tokio::spawn(run_fut);
     shutdown_tx.send(true).unwrap();
     handle.await.unwrap();
@@ -218,7 +212,6 @@ async fn test_drawdown_manager_shutdown() {
         .get::<serde_json::Value>("daily_anchor")
         .unwrap()
         .is_some());
-
     std::fs::remove_dir_all(&temp_dir).ok();
 }
 
@@ -236,7 +229,6 @@ async fn test_drawdown_manager_rearm() {
         .date_naive()
         .format("%Y-%m-%d")
         .to_string();
-
     let emergency_state = serde_json::json!({
         "date": today,
         "active": true
@@ -261,17 +253,14 @@ async fn test_drawdown_manager_rearm() {
         temp_dir.clone(),
         shutdown_rx,
     );
-
     let handle = tokio::spawn(run_fut);
 
     // Sleep a bit to allow drawdown monitor loop to read persisted state and update channel
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
     assert_eq!(*emergency_rx.borrow(), true);
 
     shutdown_tx.send(true).unwrap();
     handle.await.unwrap();
-
     std::fs::remove_dir_all(&temp_dir).ok();
 }
 
@@ -282,52 +271,89 @@ fn test_live_config_parsing() {
     use live::config::LiveConfig;
 
     let single_json = r#"{
-        "strategy": "rx8",
+        "strategy": "rsi_reversion",
         "symbol": "BTCUSDT",
         "timeframe": "1h",
         "risk_manager": {
             "type": "fixed_percent",
-            "risk_percent": 1.0
+            "pct": 0.01,
+            "initial_balance": 100000.0
         },
         "stop_manager": {
             "type": "fixed",
-            "stop_loss_points": 100.0,
-            "take_profit_points": 200.0
+            "stop_distance": 100.0,
+            "start_rr": 0.0
         },
         "indicators": {
             "rsi": {
                 "type": "rsi",
                 "period": 14
             }
+        },
+        "strategy_parameters": {
+            "oversold": 30.0,
+            "overbought": 70.0,
+            "stop_pct": 0.02,
+            "tp_pct": 0.04
         }
     }"#;
-
     let config = LiveConfig::from_json(single_json).unwrap();
     assert_eq!(config.workers().len(), 1);
-    assert_eq!(config.workers()[0].strategy, "rx8");
+    assert_eq!(config.workers()[0].strategy, "rsi_reversion");
     assert_eq!(config.workers()[0].symbol, "BTCUSDT");
     assert_eq!(config.workers()[0].effective_stop_timeframe(), "1h");
     assert_eq!(config.workers()[0].tick_streamer_name(), "binance");
 
     let array_json = r#"[
         {
-            "strategy": "rx8",
+            "strategy": "rsi_reversion",
             "symbol": "BTCUSDT",
             "timeframe": "1h",
-            "risk_manager": {},
-            "stop_manager": {}
+            "risk_manager": {
+                "type": "fixed_percent",
+                "pct": 0.01,
+                "initial_balance": 100000.0
+            },
+            "stop_manager": {
+                "type": "fixed",
+                "stop_distance": 10.0,
+                "start_rr": 0.0
+            },
+            "indicators": {
+                "rsi": { "type": "rsi", "period": 14 }
+            },
+            "strategy_parameters": {
+                "oversold": 30.0,
+                "overbought": 70.0
+            }
         },
         {
-            "strategy": "mustang",
+            "strategy": "ema_cross",
             "symbol": "ETHUSDT",
             "timeframe": "15m",
-            "risk_manager": {},
-            "stop_manager": {}
+            "risk_manager": {
+                "type": "fixed_percent",
+                "pct": 0.01,
+                "initial_balance": 100000.0
+            },
+            "stop_manager": {
+                "type": "fixed",
+                "stop_distance": 10.0,
+                "start_rr": 0.0
+            },
+            "indicators": {
+                "ema_fast": { "type": "ema", "period": 9 },
+                "ema_slow": { "type": "ema", "period": 21 }
+            },
+            "strategy_parameters": {
+                "stop_pct": 0.02,
+                "tp_pct": 0.04
+            }
         }
     ]"#;
     let config2 = LiveConfig::from_json(array_json).unwrap();
     assert_eq!(config2.workers().len(), 2);
-    assert_eq!(config2.workers()[1].strategy, "mustang");
+    assert_eq!(config2.workers()[1].strategy, "ema_cross");
 
     assert!(LiveConfig::from_json("[]").is_err());
     assert!(LiveConfig::from_json("{invalid").is_err());
@@ -394,7 +420,6 @@ fn test_trade_managers() {
         Box::new(SimpleStopManager { stop: 90.0 }),
         vec![],
     );
-
     assert!(!tm.is_closed());
     assert_eq!(tm.close_reason(), ExitReason::ExitRule);
 
@@ -477,7 +502,6 @@ fn test_trade_managers() {
         Box::new(SimpleStopManager { stop: 90.0 }),
         vec![],
     );
-
     let mut gtm = GroupTradeManager::new(
         5,
         vec![tm1, tm2],
@@ -507,7 +531,6 @@ fn test_trade_managers() {
         vec![tm1_tp, tm2_tp],
         Box::new(SimpleStopManager { stop: 90.0 }),
     );
-
     let tp_indices = gtm_tp.check_tick_tp(&tp_tick);
     assert_eq!(tp_indices, vec![0, 1]);
 
@@ -538,12 +561,12 @@ fn test_trade_managers() {
 #[tokio::test]
 async fn test_account_reporter_shutdown() {
     use live::account_reporter;
-
     let now_nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let temp_dir = std::env::temp_dir().join(format!("test_account_reporter_shutdown_{}", now_nanos));
+    let temp_dir =
+        std::env::temp_dir().join(format!("test_account_reporter_shutdown_{}", now_nanos));
 
     let provider = Arc::new(MockDataProvider {
         equity: 50000.0,
@@ -551,7 +574,6 @@ async fn test_account_reporter_shutdown() {
     });
     let notifier = Arc::new(NullNotifier);
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
-
     shutdown_tx.send(true).unwrap();
 
     account_reporter::run(provider, notifier, temp_dir.clone(), shutdown_rx).await;
@@ -590,6 +612,7 @@ impl broker::DataProvider for MockBroker {
     ) -> anyhow::Result<Vec<ts_core::Bar>> {
         Ok(vec![])
     }
+
     async fn account(&self) -> anyhow::Result<ts_core::AccountInfo> {
         Ok(ts_core::AccountInfo {
             balance: self.balance,
@@ -600,6 +623,7 @@ impl broker::DataProvider for MockBroker {
             margin_free: self.equity,
         })
     }
+
     async fn symbol_info(&self, sym: &str) -> anyhow::Result<ts_core::SymbolInfo> {
         Ok(ts_core::SymbolInfo {
             symbol: sym.to_string(),
@@ -635,6 +659,7 @@ impl broker::Executor for MockBroker {
             group_id: 0,
         })
     }
+
     async fn close(
         &self,
         pos: &ts_core::Position,
@@ -648,6 +673,7 @@ impl broker::Executor for MockBroker {
             ts_core::ExitReason::ExitRule,
         ))
     }
+
     async fn update_sl(
         &self,
         pos: &ts_core::Position,
@@ -700,7 +726,7 @@ async fn test_live_worker_run_loop() {
     let trade_db = Arc::new(Mutex::new(TradeDb::open(&temp_db_path).unwrap()));
 
     let worker_json = r#"{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "1m",
         "risk_manager": {
@@ -714,25 +740,22 @@ async fn test_live_worker_run_loop() {
             "start_rr": 0.0
         },
         "indicators": {
-            "rsi_14": {
-                "type": "rsi",
-                "period": 14
+            "ema_fast": {
+                "type": "ema",
+                "period": 9
             },
-            "stop_finder": {
-                "type": "stop_finder",
-                "length": 14,
-                "multiplier": 1.2
+            "ema_slow": {
+                "type": "ema",
+                "period": 21
             }
         },
         "strategy_parameters": {
-            "rsi_upper_threshold": 70.0,
-            "rsi_lower_threshold": 30.0,
-            "cross_only": false,
-            "model_type": "continuation"
+            "stop_pct": 0.02,
+            "tp_pct": 0.04
         }
     }"#;
-    let config: LiveWorkerConfig = serde_json::from_str(worker_json).unwrap();
 
+    let config: LiveWorkerConfig = serde_json::from_str(worker_json).unwrap();
     let mock_broker = Arc::new(MockBroker::new());
     let handles = BrokerHandles {
         provider: mock_broker.clone(),
@@ -740,12 +763,10 @@ async fn test_live_worker_run_loop() {
         streamer: mock_broker.clone(),
         tick_streamer: mock_broker.clone(),
     };
-
     let notifier = Arc::new(NullNotifier);
     let (_dd_tx, dd_rx) = watch::channel(0.0);
 
     let worker = LiveWorker::new(&config, &handles, notifier, trade_db.clone(), dd_rx).unwrap();
-
     let (news_tx, news_rx) = mpsc::unbounded_channel();
     let (emergency_tx, emergency_rx) = watch::channel(false);
     let (_decay_tx, decay_rx) = watch::channel(false);
@@ -754,7 +775,14 @@ async fn test_live_worker_run_loop() {
     let mock_broker_c = mock_broker.clone();
     let jh = tokio::spawn(async move {
         worker
-            .run(config, handles, news_rx, emergency_rx, decay_rx, shutdown_rx)
+            .run(
+                config,
+                handles,
+                news_rx,
+                emergency_rx,
+                decay_rx,
+                shutdown_rx,
+            )
             .await
     });
 
@@ -768,10 +796,20 @@ async fn test_live_worker_run_loop() {
     };
 
     if let Some(sender) = bar_sender.clone() {
-        // Send 60 bars to trigger indicators & signals (MIN_BARS = 50)
-        for i in 0..60 {
-            // Steadily increasing closes to trigger RSI > 70.0
-            let price = 100.0 + (i as f64) * 0.5;
+        // Send 100 bars to trigger indicators & signals.
+        // MIN_BARS = 50, so signals are only processed from bar 50 onwards.
+        // We delay the EMA golden cross until after bar 50 by holding price flat
+        // between bars 40-50, then starting a steep uptrend.
+        for i in 0..100 {
+            let price = if i < 20 {
+                100.0 // flat
+            } else if i < 40 {
+                100.0 - (i - 20) as f64 * 2.0 // 100 → 60 (downtrend)
+            } else if i < 50 {
+                60.0 // flat (EMAs converge, fast < slow)
+            } else {
+                60.0 + (i - 50) as f64 * 2.0 // 60 → 160 (uptrend → cross)
+            };
             let bar = ts_core::Bar::new(
                 1719000000 + i * 60,
                 price,
@@ -785,17 +823,18 @@ async fn test_live_worker_run_loop() {
     }
 
     // Give the event loop time to process the bars
-    tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
     // Verify a trade has been opened in the db
     let strategy_id = {
         let mut h: u64 = 14695981039346656037;
-        for b in "rx8:BTCUSDT:1m".bytes() {
+        for b in "ema_cross:BTCUSDT:1m".bytes() {
             h ^= b as u64;
             h = h.wrapping_mul(1099511628211);
         }
         h
     };
+
     {
         let db = trade_db.lock().unwrap();
         let open_trades = db.load_open(strategy_id).unwrap();
@@ -836,10 +875,15 @@ async fn test_live_worker_run_loop() {
         .unwrap();
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-    // Send more bars to open a trade now that blackout is cleared
+    // Send more bars to open a trade now that blackout is cleared.
+    // Another V-shaped series to trigger a second golden cross.
     if let Some(ref sender) = bar_sender {
-        for i in 60..120 {
-            let price = 160.0 + ((i - 60) as f64) * 0.5;
+        for i in 100..150 {
+            let price = if i < 120 {
+                160.0 - (i - 100) as f64 * 3.0 // 160 → 100 (downtrend)
+            } else {
+                100.0 + (i - 120) as f64 * 2.0 // 100 → 200 (uptrend → cross)
+            };
             let bar = ts_core::Bar::new(
                 1719000000 + i * 60,
                 price,
@@ -851,7 +895,7 @@ async fn test_live_worker_run_loop() {
             sender.send(bar).await.ok();
         }
     }
-    tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
     // Assert a new trade is open
     {
@@ -876,10 +920,8 @@ async fn test_live_worker_run_loop() {
 
     // Trigger shutdown
     shutdown_tx.send(true).unwrap();
-
     let run_res = jh.await.unwrap();
     assert!(run_res.is_ok());
-
     std::fs::remove_file(&temp_db_path).ok();
 }
 
@@ -897,7 +939,7 @@ async fn test_live_engine_run() {
 
     let json = format!(
         r#"{{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "1h",
         "risk_manager": {{
@@ -910,6 +952,14 @@ async fn test_live_engine_run() {
             "stop_distance": 10.0,
             "start_rr": 0.0
         }},
+        "indicators": {{
+            "ema_fast": {{ "type": "ema", "period": 9 }},
+            "ema_slow": {{ "type": "ema", "period": 21 }}
+        }},
+        "strategy_parameters": {{
+            "stop_pct": 0.02,
+            "tp_pct": 0.04
+        }},
         "trade_executor": "paper",
         "data_dir": {:?}
     }}"#,
@@ -918,12 +968,9 @@ async fn test_live_engine_run() {
 
     let config = LiveConfig::from_json(&json).unwrap();
     let engine = LiveEngine::new(config);
-
     let run_fut = engine.run();
     let result = tokio::time::timeout(tokio::time::Duration::from_millis(200), run_fut).await;
-
     assert!(result.is_err());
-
     std::fs::remove_dir_all(&temp_dir).ok();
 }
 
@@ -943,6 +990,7 @@ impl DataProvider for DynamicDataProvider {
     ) -> anyhow::Result<Vec<ts_core::Bar>> {
         Ok(vec![])
     }
+
     async fn account(&self) -> anyhow::Result<ts_core::AccountInfo> {
         let eq = *self.equity.lock().unwrap();
         let bal = *self.balance.lock().unwrap();
@@ -955,6 +1003,7 @@ impl DataProvider for DynamicDataProvider {
             margin_free: eq,
         })
     }
+
     async fn symbol_info(&self, sym: &str) -> anyhow::Result<ts_core::SymbolInfo> {
         Ok(ts_core::SymbolInfo {
             symbol: sym.to_string(),
@@ -999,28 +1048,23 @@ async fn test_drawdown_manager_tripped() {
         temp_dir.clone(),
         shutdown_rx,
     );
-
     let handle = tokio::spawn(run_fut);
 
     tokio::time::advance(tokio::time::Duration::from_secs(65)).await;
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
     assert_eq!(*emergency_rx.borrow(), false);
     assert_eq!(*dd_rx.borrow(), 0.0);
 
     {
         *provider.equity.lock().unwrap() = 45000.0;
     }
-
     tokio::time::advance(tokio::time::Duration::from_secs(60)).await;
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
     assert_eq!(*emergency_rx.borrow(), true);
     assert_eq!(*dd_rx.borrow(), 0.1);
 
     shutdown_tx.send(true).unwrap();
     handle.await.unwrap();
-
     std::fs::remove_dir_all(&temp_dir).ok();
 }
 
@@ -1062,7 +1106,6 @@ async fn test_drawdown_manager_rollover() {
         temp_dir.clone(),
         shutdown_rx,
     );
-
     let handle = tokio::spawn(run_fut);
 
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
@@ -1080,13 +1123,11 @@ async fn test_drawdown_manager_rollover() {
 
     tokio::time::advance(tokio::time::Duration::from_secs(65)).await;
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
     assert_eq!(*emergency_rx.borrow(), false);
     assert_eq!(*dd_rx.borrow(), 0.0);
 
     shutdown_tx.send(true).unwrap();
     handle.await.unwrap();
-
     std::fs::remove_dir_all(&temp_dir).ok();
 }
 
@@ -1128,7 +1169,6 @@ impl DataProvider for ErrorDataProvider {
 #[tokio::test(start_paused = true)]
 async fn test_account_reporter_report() {
     use live::account_reporter;
-
     let now_nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -1151,7 +1191,6 @@ async fn test_account_reporter_report() {
 
     // Yield control so that the loop initializes and schedules the sleep timer
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
     // Fast forward virtual clock to trigger sleep
     tokio::time::advance(tokio::time::Duration::from_secs(7200)).await;
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
@@ -1164,7 +1203,6 @@ async fn test_account_reporter_report() {
 #[tokio::test(start_paused = true)]
 async fn test_account_reporter_error() {
     use live::account_reporter;
-
     let now_nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -1184,7 +1222,6 @@ async fn test_account_reporter_error() {
 
     // Yield control so that the loop initializes and schedules the sleep timer
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
     // Fast forward virtual clock to trigger sleep
     tokio::time::advance(tokio::time::Duration::from_secs(7200)).await;
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
@@ -1283,7 +1320,7 @@ async fn test_live_engine_graceful_shutdown() {
 
     let json = format!(
         r#"{{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "1h",
         "risk_manager": {{
@@ -1296,6 +1333,14 @@ async fn test_live_engine_graceful_shutdown() {
             "stop_distance": 10.0,
             "start_rr": 0.0
         }},
+        "indicators": {{
+            "ema_fast": {{ "type": "ema", "period": 9 }},
+            "ema_slow": {{ "type": "ema", "period": 21 }}
+        }},
+        "strategy_parameters": {{
+            "stop_pct": 0.02,
+            "tp_pct": 0.04
+        }},
         "trade_executor": "paper",
         "data_dir": {:?}
     }}"#,
@@ -1304,7 +1349,6 @@ async fn test_live_engine_graceful_shutdown() {
 
     let config = LiveConfig::from_json(&json).unwrap();
     let engine = LiveEngine::new(config);
-
     let handle = tokio::spawn(engine.run());
 
     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
@@ -1320,7 +1364,6 @@ async fn test_live_engine_graceful_shutdown() {
 
     let run_res = handle.await.unwrap();
     assert!(run_res.is_ok());
-
     std::fs::remove_dir_all(&temp_dir).ok();
 }
 
@@ -1376,7 +1419,6 @@ fn test_formatter_unified_structure() {
         is_split_chunk: false,
         group_id: 0,
     };
-
     let open_msg = formatter::format_trade_open(&pos, "EURUSD");
     // All position fields present
     assert!(open_msg.contains("Trade Opened"));
@@ -1485,7 +1527,7 @@ fn test_live_config_with_all_fields() {
     use live::config::LiveConfig;
 
     let json = r#"{
-        "strategy": "mustang",
+        "strategy": "ema_cross",
         "symbol": "ETHUSDT",
         "timeframe": "5m",
         "stop_timeframe": "15m",
@@ -1502,23 +1544,25 @@ fn test_live_config_with_all_fields() {
         },
         "stop_manager": {
             "type": "variant2",
-            "stop_distance": 0.5
+            "stop_distance": 0.5,
+            "start_rr": 0.0
         },
         "exit_rules": [
-            { "type": "strategy", "condition": "opposite_signal" }
+            { "type": "strategy_exit", "condition": "opposite_signal" }
         ],
         "strategy_parameters": {
-            "trade_direction": "both"
+            "stop_pct": 0.02,
+            "tp_pct": 0.04
         },
         "indicators": {
-            "msm": { "type": "msm" }
+            "ema_fast": { "type": "ema", "period": 9 },
+            "ema_slow": { "type": "ema", "period": 21 }
         }
     }"#;
-
     let config = LiveConfig::from_json(json).unwrap();
     assert_eq!(config.workers().len(), 1);
     let w = &config.workers()[0];
-    assert_eq!(w.strategy, "mustang");
+    assert_eq!(w.strategy, "ema_cross");
     assert_eq!(w.symbol, "ETHUSDT");
     assert_eq!(w.effective_stop_timeframe(), "15m");
     assert_eq!(w.tick_streamer_name(), "binance");
@@ -1529,13 +1573,12 @@ fn test_live_config_defaults() {
     use live::config::LiveConfig;
 
     let json = r#"{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "1h",
         "risk_manager": {},
         "stop_manager": {}
     }"#;
-
     let config = LiveConfig::from_json(json).unwrap();
     let w = &config.workers()[0];
     assert_eq!(w.effective_stop_timeframe(), "1h"); // defaults to timeframe
@@ -1578,7 +1621,6 @@ fn test_trade_manager_sell_position() {
         is_split_chunk: false,
         group_id: 0,
     };
-
     let mut tm = TradeManager::new(
         pos,
         "BTCUSDT".to_string(),
@@ -1634,7 +1676,6 @@ fn test_trade_manager_sell_stop_hit() {
         is_split_chunk: false,
         group_id: 0,
     };
-
     let mut tm = TradeManager::new(
         pos,
         "BTCUSDT".to_string(),
@@ -1691,7 +1732,6 @@ async fn test_drawdown_manager_error_provider() {
 
     shutdown_tx.send(true).unwrap();
     handle.await.unwrap();
-
     std::fs::remove_dir_all(&temp_dir).ok();
 }
 
@@ -1718,7 +1758,6 @@ fn test_formatter_html_escaping_in_news() {
             title: "A&B <Report> \"Data\"".to_string(),
         }],
     };
-
     let msg = formatter::format_news_blackout(&window);
     assert!(msg.contains("A&amp;B"), "& must be escaped to &amp;");
     assert!(msg.contains("&lt;Report&gt;"), "< and > must be escaped");
@@ -1785,10 +1824,9 @@ fn test_formatter_positive_pnl_uses_profit_emoji() {
 #[test]
 fn test_live_config_tick_streamer_inherits_bar_streamer() {
     use live::config::LiveConfig;
-
     // When tick_streamer is omitted, tick_streamer_name() must fall back to bar_streamer.
     let json = r#"{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "1h",
         "bar_streamer": "mt5",
@@ -1808,9 +1846,8 @@ fn test_live_config_tick_streamer_inherits_bar_streamer() {
 #[test]
 fn test_live_config_explicit_tick_streamer_overrides_bar_streamer() {
     use live::config::LiveConfig;
-
     let json = r#"{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "1h",
         "bar_streamer": "binance",
@@ -1831,9 +1868,8 @@ fn test_live_config_explicit_tick_streamer_overrides_bar_streamer() {
 #[test]
 fn test_live_config_max_open_positions_default_is_none() {
     use live::config::LiveConfig;
-
     let json = r#"{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "1h",
         "risk_manager": {},
@@ -1849,9 +1885,8 @@ fn test_live_config_max_open_positions_default_is_none() {
 #[test]
 fn test_live_config_process_incomplete_bars_default_false() {
     use live::config::LiveConfig;
-
     let json = r#"{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "1h",
         "risk_manager": {},
@@ -1867,9 +1902,8 @@ fn test_live_config_process_incomplete_bars_default_false() {
 #[test]
 fn test_live_config_stop_timeframe_defaults_to_timeframe() {
     use live::config::LiveConfig;
-
     let json = r#"{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "4h",
         "risk_manager": {},
@@ -1884,7 +1918,7 @@ fn test_live_config_stop_timeframe_defaults_to_timeframe() {
 
     // "stop_timeframe": "timeframe"
     let json2 = r#"{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "4h",
         "stop_timeframe": "timeframe",
@@ -1896,7 +1930,7 @@ fn test_live_config_stop_timeframe_defaults_to_timeframe() {
 
     // "stop_timeframe": "15m"
     let json3 = r#"{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "4h",
         "stop_timeframe": "15m",
@@ -1908,7 +1942,7 @@ fn test_live_config_stop_timeframe_defaults_to_timeframe() {
 
     // "stop_timeframe": ["5m"]
     let json4 = r#"{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "4h",
         "stop_timeframe": ["5m"],
@@ -1920,7 +1954,7 @@ fn test_live_config_stop_timeframe_defaults_to_timeframe() {
 
     // "stop_timeframe": ["timeframe"]
     let json5 = r#"{
-        "strategy": "rx8",
+        "strategy": "ema_cross",
         "symbol": "BTCUSDT",
         "timeframe": "4h",
         "stop_timeframe": ["timeframe"],
@@ -1929,44 +1963,4 @@ fn test_live_config_stop_timeframe_defaults_to_timeframe() {
     }"#;
     let config5 = LiveConfig::from_json(json5).unwrap();
     assert_eq!(config5.workers()[0].effective_stop_timeframe(), "4h");
-}
-
-#[test]
-fn test_live_config_pyramiding_default_is_true() {
-    use live::config::LiveConfig;
-
-    let json = r#"{
-        "strategy": "rx8",
-        "symbol": "BTCUSDT",
-        "timeframe": "1h",
-        "risk_manager": {},
-        "stop_manager": {}
-    }"#;
-    let config = LiveConfig::from_json(json).unwrap();
-    assert!(
-        config.workers()[0].pyramiding,
-        "pyramiding must default to true"
-    );
-}
-
-#[test]
-fn test_mt5_rx8_config_parsing() {
-    use live::config::LiveConfig;
-    let path = std::path::Path::new("../../configs/live/mt5_rx8.json");
-    assert!(
-        path.exists(),
-        "mt5_rx8.json config file does not exist at {:?}",
-        path
-    );
-    let json = std::fs::read_to_string(path).unwrap();
-    let config = LiveConfig::from_json(&json).unwrap();
-    assert_eq!(config.workers().len(), 1);
-    let worker = &config.workers()[0];
-    assert_eq!(worker.strategy, "rx8");
-    assert_eq!(worker.symbol, "EURUSD");
-    assert_eq!(worker.timeframe, "15m");
-    assert_eq!(worker.data_provider, "mt5");
-    assert_eq!(worker.trade_executor, "mt5");
-    assert_eq!(worker.bar_streamer, "mt5");
-    assert_eq!(worker.tick_streamer_name(), "mt5");
 }

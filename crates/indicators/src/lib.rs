@@ -1,9 +1,9 @@
 pub mod ema;
-pub mod macd;
-pub mod rsi;
-pub mod math;
 pub mod factory;
+pub mod macd;
+pub mod math;
 pub mod multi_tf;
+pub mod rsi;
 
 pub use factory::{build, split_indicator_def, IndicatorConfig};
 pub use multi_tf::{build_indicator_set, TfIndicator};

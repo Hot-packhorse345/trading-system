@@ -1,8 +1,5 @@
 use crate::{
-    strategies::{
-        ema_cross::EmaCross,
-        rsi_reversion::RsiReversion
-    },
+    strategies::{ema_cross::EmaCross, rsi_reversion::RsiReversion},
     Strategy,
 };
 use anyhow::{anyhow, Result};

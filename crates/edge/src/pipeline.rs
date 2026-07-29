@@ -1028,11 +1028,7 @@ fn count_profitable_neighbors(
                 valid = false;
                 break;
             };
-            let Some(idx) = dim
-                .values
-                .iter()
-                .position(|v| (v - val_f64).abs() < 1e-9)
-            else {
+            let Some(idx) = dim.values.iter().position(|v| (v - val_f64).abs() < 1e-9) else {
                 valid = false;
                 break;
             };

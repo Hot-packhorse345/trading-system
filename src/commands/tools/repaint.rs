@@ -10,6 +10,7 @@ use indicators::{build, IndicatorConfig};
 use ts_core::parse_timeframe;
 use ts_core::Bar;
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_cmd(
     config: Option<PathBuf>,
     indicator: Option<String>,
@@ -113,6 +114,7 @@ struct RepaintDetail {
 
 // ── Main check function ───────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn check_indicator(
     cfg: &IndicatorConfig,
     bars: &[Bar],

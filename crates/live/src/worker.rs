@@ -1190,7 +1190,7 @@ mod tests {
         let trade_db = Arc::new(Mutex::new(TradeDb::open(&temp_db_path).unwrap()));
 
         let worker_json = r#"{
-            "strategy": "rx8",
+            "strategy": "rsi_reversion",
             "symbol": "BTCUSDT",
             "timeframe": "1h",
             "risk_manager": {
@@ -1263,7 +1263,7 @@ mod tests {
         let trade_db = Arc::new(Mutex::new(TradeDb::open(&temp_db_path).unwrap()));
 
         let worker_json = r#"{
-            "strategy": "rx8",
+            "strategy": "ema_cross",
             "symbol": "BTCUSDT",
             "timeframe": "1h",
             "risk_manager": {
@@ -1275,7 +1275,14 @@ mod tests {
                 "stop_distance": 10.0,
                 "start_rr": 0.0
             },
-            "indicators": {}
+            "indicators": {
+                "ema_fast": { "type": "ema", "period": 9 },
+                "ema_slow": { "type": "ema", "period": 21 }
+            },
+            "strategy_parameters": {
+                "stop_pct": 0.02,
+                "tp_pct": 0.04
+            }
         }"#;
         let config: LiveWorkerConfig = serde_json::from_str(worker_json).unwrap();
 
@@ -1357,7 +1364,7 @@ mod tests {
         let trade_db = Arc::new(Mutex::new(TradeDb::open(&temp_db_path).unwrap()));
 
         let worker_json = r#"{
-            "strategy": "rx8",
+            "strategy": "rsi_reversion",
             "symbol": "BTCUSDT",
             "timeframe": "1h",
             "trade_executor": "paper",
@@ -1370,7 +1377,15 @@ mod tests {
                 "stop_distance": 10.0,
                 "start_rr": 0.0
             },
-            "indicators": {}
+            "indicators": {
+                "rsi": { "type": "rsi", "period": 14 }
+            },
+            "strategy_parameters": {
+                "oversold": 30.0,
+                "overbought": 70.0,
+                "stop_pct": 0.02,
+                "tp_pct": 0.04
+            }
         }"#;
         let config: LiveWorkerConfig = serde_json::from_str(worker_json).unwrap();
 

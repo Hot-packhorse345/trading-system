@@ -130,10 +130,10 @@ pub fn run(
 
     // ── Resample bars for HTF timeframes ──────────────────────────────────────
     let mut htf_bars_to_insert = Vec::new();
-    for ((symbol, tf), _) in &ind_cfgs_by_pair {
+    for (symbol, tf) in ind_cfgs_by_pair.keys() {
         let has_bars = bars_by_symbol
             .get(symbol)
-            .map_or(false, |m| m.contains_key(tf));
+            .is_some_and(|m| m.contains_key(tf));
         if !has_bars {
             if let Some(m) = bars_by_symbol.get(symbol) {
                 if let Some((&src_tf, src_bars)) = m

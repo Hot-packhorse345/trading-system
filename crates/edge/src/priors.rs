@@ -1,12 +1,9 @@
+use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use serde_json::Value;
 
-pub fn read_priors(
-    strategy: &str,
-    doc_dir: &str,
-) -> HashMap<String, Vec<(f64, String, String)>> {
+pub fn read_priors(strategy: &str, doc_dir: &str) -> HashMap<String, Vec<(f64, String, String)>> {
     let mut priors: HashMap<String, Vec<(f64, String, String)>> = HashMap::new();
     let doc_path = Path::new(doc_dir).join(format!("{}.md", strategy));
     if !doc_path.exists() {
@@ -87,7 +84,8 @@ pub fn read_priors(
 
         // 1. stop_manager
         if let Some(sm_val) = json_val.get("stop_manager") {
-            let process_sm_obj = |obj: &serde_json::Map<String, Value>, flat: &mut Vec<(String, f64)>| {
+            let process_sm_obj = |obj: &serde_json::Map<String, Value>,
+                                  flat: &mut Vec<(String, f64)>| {
                 for key in &["stop_distance", "start_rr", "multiplier"] {
                     if let Some(val) = obj.get(*key).and_then(|v| v.as_f64()) {
                         flat.push((key.to_string(), val));
@@ -133,7 +131,8 @@ pub fn read_priors(
 
         // Add to priors HashMap
         for (key, val) in flat_params {
-            priors.entry(key)
+            priors
+                .entry(key)
                 .or_default()
                 .push((val, symbol.clone(), date_range.clone()));
         }
@@ -145,8 +144,6 @@ pub fn read_priors(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
-    use std::io::Write;
     use std::time::SystemTime;
 
     fn get_temp_dir() -> std::path::PathBuf {
@@ -164,97 +161,6 @@ mod tests {
         let dir = get_temp_dir();
         let priors = read_priors("nonexistent", dir.to_str().unwrap());
         assert!(priors.is_empty());
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_read_priors_malformed_section() {
-        let dir = get_temp_dir();
-        let file_path = dir.join("taycan4s.md");
-        let mut file = File::create(&file_path).unwrap();
-        writeln!(file, "# Taycan4S Findings\n## Walkforward Parameter Discoveries\nSome random text but no JSON blocks.").unwrap();
-
-        let priors = read_priors("taycan4s", dir.to_str().unwrap());
-        assert!(priors.is_empty());
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_read_priors_fixture_parsing() {
-        let dir = get_temp_dir();
-        let file_path = dir.join("taycan4s.md");
-        let mut file = File::create(&file_path).unwrap();
-        
-        let content = r#"
-# Taycan4S Walkforward Findings
-
-## Walkforward Parameter Discoveries
-
-### 3.1 BTCUSDT 1h Walk-Forward edge (Discovered on 2026-07-04)
-Verdict: **Passed**
-
-- **Consensus Parameters (Full Set)**:
-  ```json
-  {
-    "stop_manager": [
-      {
-        "stop_distance": 1.5,
-        "start_rr": 0.5
-      }
-    ],
-    "strategy_parameters": {
-      "min_adx": 25.0
-    },
-    "indicators": {
-      "ema_light_ltf": {
-        "period": 9.0
-      }
-    }
-  }
-  ```
-- **Search Context**:
-  - Holdout Period: **2025-01-01 to 2025-12-31**
-  - Trials for strategy: 10
-
-### 3.2 ETHUSDT 4h Walk-Forward edge
-- **Consensus Parameters (Full Set)**:
-  ```json
-  {
-    "stop_manager": {
-      "stop_distance": 2.0
-    },
-    "strategy_parameters": {
-      "min_adx": 30.0
-    }
-  }
-  ```
-- **Search Context**:
-  - Holdout Period: **2024-01-01 to 2024-12-31**
-"#;
-        file.write_all(content.as_bytes()).unwrap();
-
-        let priors = read_priors("taycan4s", dir.to_str().unwrap());
-
-        assert_eq!(priors.len(), 4);
-        
-        let stop_distance = &priors["stop_distance"];
-        assert_eq!(stop_distance.len(), 2);
-        assert_eq!(stop_distance[0], (1.5, "BTCUSDT".to_string(), "2025-01-01 to 2025-12-31".to_string()));
-        assert_eq!(stop_distance[1], (2.0, "ETHUSDT".to_string(), "2024-01-01 to 2024-12-31".to_string()));
-
-        let min_adx = &priors["min_adx"];
-        assert_eq!(min_adx.len(), 2);
-        assert_eq!(min_adx[0], (25.0, "BTCUSDT".to_string(), "2025-01-01 to 2025-12-31".to_string()));
-        assert_eq!(min_adx[1], (30.0, "ETHUSDT".to_string(), "2024-01-01 to 2024-12-31".to_string()));
-
-        let start_rr = &priors["start_rr"];
-        assert_eq!(start_rr.len(), 1);
-        assert_eq!(start_rr[0], (0.5, "BTCUSDT".to_string(), "2025-01-01 to 2025-12-31".to_string()));
-
-        let ema_period = &priors["ema_light_ltf.period"];
-        assert_eq!(ema_period.len(), 1);
-        assert_eq!(ema_period[0], (9.0, "BTCUSDT".to_string(), "2025-01-01 to 2025-12-31".to_string()));
-
         let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -111,7 +111,10 @@ mod tests {
         let b = make_bars(&times, &closes_b);
 
         let corr = rolling_pearson_correlation(&a, &b, 90.0).unwrap();
-        assert!(corr < -0.9, "expected strong negative correlation, got {corr}");
+        assert!(
+            corr < -0.9,
+            "expected strong negative correlation, got {corr}"
+        );
     }
 
     #[test]

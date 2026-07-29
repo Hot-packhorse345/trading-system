@@ -1,4 +1,7 @@
-use crate::{schema::{ParamKind, ParamSpec}, Strategy};
+use crate::{
+    schema::{ParamKind, ParamSpec},
+    Strategy,
+};
 use std::collections::HashMap;
 use ts_core::{Bar, Direction, IndicatorSet, Params, Signal};
 
@@ -17,7 +20,8 @@ impl Strategy for RsiReversion {
         let mut signals = vec![None; bars.len()];
 
         // Allow the period to be defined in strategy params or indicator params
-        let rsi_period = ind_params.get("rsi")
+        let rsi_period = ind_params
+            .get("rsi")
             .and_then(|p| p.u64("period").or_else(|| p.u64("timeperiod")))
             .unwrap_or(params.u64_or("rsi_period", 14)) as usize;
 
@@ -62,11 +66,36 @@ impl Strategy for RsiReversion {
 
     fn param_schema(&self) -> Vec<ParamSpec> {
         vec![
-            ParamSpec { key: "rsi_period".to_string(), kind: ParamKind::Structural, default: serde_json::json!(14), safe_range: None },
-            ParamSpec { key: "oversold".to_string(), kind: ParamKind::Tunable, default: serde_json::json!(30.0), safe_range: Some((10.0, 40.0)) },
-            ParamSpec { key: "overbought".to_string(), kind: ParamKind::Tunable, default: serde_json::json!(70.0), safe_range: Some((60.0, 90.0)) },
-            ParamSpec { key: "stop_pct".to_string(), kind: ParamKind::Tunable, default: serde_json::json!(0.02), safe_range: Some((0.005, 0.1)) },
-            ParamSpec { key: "tp_pct".to_string(), kind: ParamKind::Tunable, default: serde_json::json!(0.04), safe_range: Some((0.01, 0.2)) },
+            ParamSpec {
+                key: "rsi_period".to_string(),
+                kind: ParamKind::Structural,
+                default: serde_json::json!(14),
+                safe_range: None,
+            },
+            ParamSpec {
+                key: "oversold".to_string(),
+                kind: ParamKind::Tunable,
+                default: serde_json::json!(30.0),
+                safe_range: Some((10.0, 40.0)),
+            },
+            ParamSpec {
+                key: "overbought".to_string(),
+                kind: ParamKind::Tunable,
+                default: serde_json::json!(70.0),
+                safe_range: Some((60.0, 90.0)),
+            },
+            ParamSpec {
+                key: "stop_pct".to_string(),
+                kind: ParamKind::Tunable,
+                default: serde_json::json!(0.02),
+                safe_range: Some((0.005, 0.1)),
+            },
+            ParamSpec {
+                key: "tp_pct".to_string(),
+                kind: ParamKind::Tunable,
+                default: serde_json::json!(0.04),
+                safe_range: Some((0.01, 0.2)),
+            },
         ]
     }
 }

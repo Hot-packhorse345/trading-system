@@ -56,6 +56,7 @@ impl DiscoveryTemplate {
             .unwrap_or_else(|| json!([]))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn build_wfa_config(
         &self,
         symbol: &SymbolMeta,
@@ -104,6 +105,7 @@ impl DiscoveryTemplate {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn build_fixed_config(
         &self,
         symbol: &SymbolMeta,

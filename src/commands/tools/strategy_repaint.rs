@@ -11,6 +11,7 @@ use backtest::grid::generate_combos;
 use strategy::{build_strategy, Strategy};
 use ts_core::{Bar, Direction, Params, Signal};
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_cmd(
     config: PathBuf,
     combo: usize,
@@ -154,6 +155,7 @@ fn dir_label(d: SigDir) -> &'static str {
 
 // ── Main check orchestrator ───────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn check_strategy(
     strategy_name: &str,
     symbol: &str,
@@ -318,6 +320,7 @@ fn forward_test(
 // If a bar's signal direction differs depending on where the window starts,
 // the strategy has origin dependency.
 
+#[allow(clippy::too_many_arguments)]
 fn origin_test(
     ind_defs: &[IndicatorDef],
     strategy_params: &Params,
